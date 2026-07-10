@@ -1,0 +1,31 @@
+{
+  "version": 1,
+  "source": {
+    "file": "source.jpg",
+    "width": 960,
+    "height": 640
+  },
+  "depth": {
+    "width": 960,
+    "height": 640,
+    "space": "disparity",
+    "orientation": "near=1",
+    "normalization": {
+      "min": 0.34656253457069397,
+      "max": 3.885498285293579
+    }
+  },
+  "camera": {
+    "fovDeg": 55,
+    "farRange": 12
+  },
+  "sky": {
+    "threshold": 0.03
+  },
+  "model": {
+    "name": "onnx-community/depth-anything-v2-small",
+    "revision": "main"
+  },
+  "bakedAt": "2026-07-10T06:47:52.222Z",
+  "sourceHash": "cbdda98ad8fa768a87517e53f4af7c65e3528515b654645c367f76cd61e26789"
+}

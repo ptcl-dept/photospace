@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Photo Space</title>
+</head>
+<body>
+<header>
+  <h1>Photo Space</h1>
+  <span class="sub">image → depth → world-position cursor effects · all local</span>
+</header>
+<span id="status">Idle</span>
+
+<div id="wrap">
+  <div id="stage">
+    <div id="drop" class="card"><b>Drop a photo</b> or click to select<br><br>
+      First run downloads a depth model (~25–50MB).<br>Inference and rendering all happen inside this browser.</div>
+    <canvas id="cv" style="display:none"></canvas>
+    <input type="file" id="file" accept="image/*" style="display:none">
+  </div>
+
+  <div id="rail">
+    <div id="bar" class="card"><div></div></div>
+    <div id="err" class="card"></div>
+
+    <div class="grp card"><label>Effect</label>
+      <div class="row">
+        <button id="m0" class="act">Ripple</button>
+        <button id="m1">Torch</button>
+        <button id="m2">Isolines</button>
+      </div>
+    </div>
+
+    <div class="grp card"><label>Distance</label>
+      <div class="row">
+        <button id="s0" class="act">World 3D</button>
+        <button id="s1">Screen 2D</button>
+      </div>
+    </div>
+
+    <div class="grp card"><label>View</label>
+      <div class="row">
+        <button id="v0" class="act">Result</button>
+        <button id="v1">Depth</button>
+        <button id="v2">Normal</button>
+      </div>
+    </div>
+
+    <div class="grp card"><label>Camera / Depth</label>
+      <div class="sld"><span class="nm">FOV</span><input type="range" id="fov" min="30" max="100" step="1" value="55"><span class="vl" id="fovV">55°</span></div>
+      <div class="sld"><span class="nm">Depth range</span><input type="range" id="far" min="3" max="40" step="0.5" value="12"><span class="vl" id="farV">12</span></div>
+      <div class="sld"><span class="nm">Sky threshold</span><input type="range" id="sky" min="0" max="0.25" step="0.005" value="0.03"><span class="vl" id="skyV">.03</span></div>
+    </div>
+
+    <div class="grp card"><label>Effect tuning</label>
+      <div class="sld"><span class="nm">Radius</span><input type="range" id="rad" min="0.1" max="4" step="0.05" value="1.0"><span class="vl" id="radV">1.0</span></div>
+      <div class="sld"><span class="nm">Edge suppression</span><input type="range" id="edg" min="0.01" max="0.2" step="0.005" value="0.05"><span class="vl" id="edgV">.05</span></div>
+    </div>
+
+    <div class="grp card"><label>Export</label>
+      <div class="row">
+        <button id="exd">Depth PNG (16-bit RG)</button>
+        <button id="expCfg">config.json</button>
+        <button id="rst">New photo</button>
+      </div>
+    </div>
+
+    <div id="hint" class="card">
+      Depth PNG packs R = high 8 bits / G = low 8 bits. config.json exports the FOV, depth range,
+      and sky threshold consumed by the CLI batch bake (photospace bake). Edge suppression keeps
+      the effect from bleeding across depth discontinuities (silhouettes).
+    </div>
+  </div>
+</div>
+
+<script type="module" src="/src/main.ts"></script>
+</body>
+</html>

@@ -1,0 +1,25 @@
+{
+  "name": "photospace-runtime",
+  "version": "0.1.0",
+  "description": "Photo Space package loader — fetch and decode the photo.avif/depth.png/mask.png/normal.png/meta.json package baked by the photospace CLI, and recover world-space positions from it.",
+  "type": "module",
+  "main": "./dist/loader.js",
+  "module": "./dist/loader.js",
+  "types": "./dist/loader.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/loader.d.ts",
+      "import": "./dist/loader.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "sideEffects": false,
+  "scripts": {
+    "build": "tsup loader.ts --format esm --out-dir dist --clean && tsc -p tsconfig.json --outDir dist"
+  },
+  "devDependencies": {
+    "tsup": "^8.3.5"
+  }
+}

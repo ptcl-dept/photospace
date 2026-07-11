@@ -1,8 +1,7 @@
 import path from "node:path";
 import { readFile, stat } from "node:fs/promises";
 import { glob } from "glob";
-import { bakePhoto, loadDepthModel } from "../core/bake.ts";
-import { DEFAULT_CONFIG, computeSourceHash, type PhotoSpaceConfig } from "../core/pack.ts";
+import { bakePhoto, loadDepthModel, DEFAULT_CONFIG, computeSourceHash, type PhotoSpaceConfig } from "photospace-core";
 import { loadSourcePhoto, readExistingMeta, writePackage } from "./io.ts";
 
 const IMAGE_EXTENSIONS = ["jpg", "jpeg", "png", "webp", "avif", "tiff"];

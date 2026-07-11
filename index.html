@@ -60,16 +60,17 @@
 
     <div class="grp card"><label>Export</label>
       <div class="row">
-        <button id="exd">Depth PNG (16-bit RG)</button>
-        <button id="expCfg">config.json</button>
+        <button id="expPkg">Package (.zip)</button>
         <button id="rst">New photo</button>
       </div>
     </div>
 
     <div id="hint" class="card">
-      Depth PNG packs R = high 8 bits / G = low 8 bits. config.json exports the FOV, depth range,
-      and sky threshold consumed by the CLI batch bake (photospace bake). Edge suppression keeps
-      the effect from bleeding across depth discontinuities (silhouettes).
+      Package (.zip) bakes the current photo at full resolution — guided-filter depth upsample,
+      sky/edge masks, world normals — and downloads the same 5-file package photospace-cli bake
+      and photospace-runtime read (photo + depth.png/mask.png/normal.png/meta.json). The photo is
+      encoded as AVIF where supported, falling back to WebP/PNG (recorded in meta.json). Edge
+      suppression keeps the effect from bleeding across depth discontinuities (silhouettes).
     </div>
   </div>
 </div>

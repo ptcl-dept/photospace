@@ -1,0 +1,41 @@
+{
+  "name": "photospace-cli",
+  "version": "0.1.0",
+  "description": "Photo Space CLI — 写真から photo.avif/depth.png/mask.png/normal.png/meta.json のパッケージを一括生成する",
+  "type": "module",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ptcl-dept/photo-space.git",
+    "directory": "packages/cli"
+  },
+  "bin": {
+    "photospace": "./dist/index.js"
+  },
+  "files": [
+    "dist"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "tsup src/index.ts --format esm --out-dir dist --clean",
+    "dev": "node --experimental-strip-types src/index.ts",
+    "prepublishOnly": "pnpm build"
+  },
+  "dependencies": {
+    "commander": "^15.0.0",
+    "glob": "^13.0.6",
+    "onnxruntime-node": "^1.27.0",
+    "photospace-core": "workspace:*",
+    "sharp": "^0.35.3"
+  },
+  "devDependencies": {
+    "@types/node": "^26.1.1",
+    "tsup": "^8.5.1",
+    "typescript": "~6.0.2"
+  }
+}

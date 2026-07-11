@@ -1,6 +1,11 @@
 export interface PhotoSpaceMeta {
   version: 1;
   source: { file: string; width: number; height: number };
+  /**
+   * パッケージ内の写真ファイル名。省略時は "photo.avif"。
+   * ブラウザexportはAVIFエンコード非対応環境でWebP/PNGへフォールバックするため、実際のファイル名をここに記録する。
+   */
+  photo?: { file: string };
   depth: {
     width: number;
     height: number;
@@ -33,7 +38,7 @@ export const DEFAULT_CONFIG: PhotoSpaceConfig = {
 };
 
 /** R=上位8bit, G=下位8bit, B=0, A=255 の RGBA ラスタへパックする */
-export function packDepthRG16(depth01: Float32Array): Uint8ClampedArray {
+export function packDepthRG16(depth01: Float32Array): Uint8ClampedArray<ArrayBuffer> {
   const out = new Uint8ClampedArray(depth01.length * 4);
   for (let i = 0; i < depth01.length; i++) {
     const v = Math.round(clamp01(depth01[i]) * 65535);
@@ -57,7 +62,7 @@ export function unpackDepthRG16(rgba: Uint8Array | Uint8ClampedArray): Float32Ar
 }
 
 /** R=空マスク, G=エッジマスク, B=0, A=255 の RGBA ラスタへパックする */
-export function packMask(sky01: Float32Array, edge01: Float32Array): Uint8ClampedArray {
+export function packMask(sky01: Float32Array, edge01: Float32Array): Uint8ClampedArray<ArrayBuffer> {
   const out = new Uint8ClampedArray(sky01.length * 4);
   for (let i = 0; i < sky01.length; i++) {
     out[i * 4] = Math.round(clamp01(sky01[i]) * 255);
@@ -69,7 +74,7 @@ export function packMask(sky01: Float32Array, edge01: Float32Array): Uint8Clampe
 }
 
 /** 法線 (-1..1) を RGB (0..255) へパックする。n*0.5+0.5 */
-export function packNormal(nx: Float32Array, ny: Float32Array, nz: Float32Array): Uint8ClampedArray {
+export function packNormal(nx: Float32Array, ny: Float32Array, nz: Float32Array): Uint8ClampedArray<ArrayBuffer> {
   const out = new Uint8ClampedArray(nx.length * 4);
   for (let i = 0; i < nx.length; i++) {
     out[i * 4] = Math.round(clamp01(nx[i] * 0.5 + 0.5) * 255);

@@ -1,4 +1,4 @@
-import { loadDepthModel, estimateDepth, type DepthModel, MODEL_NAME, MODEL_REVISION } from "./depth.ts";
+import { estimateDepth, type DepthModel, MODEL_NAME, MODEL_REVISION } from "./depth.ts";
 import { normalizeDisparity } from "./normalize.ts";
 import { guidedUpsampleDepth, type RasterF32 } from "./upsample.ts";
 import { computeSkyMask, computeEdgeMask } from "./masks.ts";
@@ -21,17 +21,22 @@ export interface SourcePhoto {
 export interface BakedPackage {
   meta: PhotoSpaceMeta;
   /** RG16パック済み深度 (RGBA raster, depth.width x depth.height) */
-  depthRgba: Uint8ClampedArray;
+  depthRgba: Uint8ClampedArray<ArrayBuffer>;
   /** R=空マスク, G=エッジマスク (RGBA raster, depth解像度) */
-  maskRgba: Uint8ClampedArray;
+  maskRgba: Uint8ClampedArray<ArrayBuffer>;
   /** 法線 (RGBA raster, depth解像度) */
-  normalRgba: Uint8ClampedArray;
+  normalRgba: Uint8ClampedArray<ArrayBuffer>;
   depthWidth: number;
   depthHeight: number;
 }
 
 export interface BakeOptions {
   model: DepthModel;
+  config: PhotoSpaceConfig;
+  guidedFilter?: { radius?: number; eps?: number };
+}
+
+export interface BakeFromDisparityOptions {
   config: PhotoSpaceConfig;
   guidedFilter?: { radius?: number; eps?: number };
 }
@@ -44,16 +49,18 @@ function fitLongEdge(width: number, height: number, maxSize: number): [number, n
 }
 
 /**
- * 推論→正規化→エッジ整合アップサンプリング→マスク→法線 の一連の処理を行い、
+ * 正規化済み(0..1)の低解像度disparityから、エッジ整合アップサンプリング→マスク→法線 を行い、
  * パッケージ5点セットのうち photo.avif を除く4点分のラスタデータと meta.json を返す。
- * photo.avif のエンコードは環境依存(sharp/canvas)のためこの関数の外で行う。
+ * 推論自体(estimateDepth)はこの関数の外で行う想定 — ビューワのようにdisparityを
+ * 既に持っている呼び出し元が、モデル推論を再実行せずに済むようbakePhotoから切り出したもの。
  */
-export async function bakePhoto(photo: SourcePhoto, opts: BakeOptions): Promise<BakedPackage> {
+export async function bakeFromDisparity(
+  photo: SourcePhoto,
+  lowRes: RasterF32,
+  normalization: { min: number; max: number },
+  opts: BakeFromDisparityOptions,
+): Promise<BakedPackage> {
   const { config } = opts;
-
-  const { width: rawW, height: rawH, raw } = await estimateDepth(opts.model, photo.input);
-  const { data: normalized, min, max } = normalizeDisparity(raw);
-  const lowRes: RasterF32 = { width: rawW, height: rawH, data: normalized };
 
   const [depthW, depthH] = fitLongEdge(photo.width, photo.height, config.depth.maxSize);
   const upsampled = guidedUpsampleDepth(
@@ -80,7 +87,7 @@ export async function bakePhoto(photo: SourcePhoto, opts: BakeOptions): Promise<
       height: depthH,
       space: "disparity",
       orientation: "near=1",
-      normalization: { min, max },
+      normalization,
     },
     camera: { fovDeg: config.camera.fovDeg, farRange: config.camera.farRange },
     sky: { threshold: config.sky.threshold },
@@ -99,4 +106,10 @@ export async function bakePhoto(photo: SourcePhoto, opts: BakeOptions): Promise<
   };
 }
 
-export { loadDepthModel };
+/** 推論→正規化→bakeFromDisparity の一連の処理を行う(CLIなど推論から自前で行う呼び出し元向け) */
+export async function bakePhoto(photo: SourcePhoto, opts: BakeOptions): Promise<BakedPackage> {
+  const { width: rawW, height: rawH, raw } = await estimateDepth(opts.model, photo.input);
+  const { data, min, max } = normalizeDisparity(raw);
+  const lowRes: RasterF32 = { width: rawW, height: rawH, data };
+  return bakeFromDisparity(photo, lowRes, { min, max }, opts);
+}

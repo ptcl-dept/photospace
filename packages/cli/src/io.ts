@@ -1,8 +1,7 @@
 import { readFile, mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import sharp from "sharp";
-import type { SourcePhoto } from "../core/bake.ts";
-import type { PhotoSpaceMeta } from "../core/pack.ts";
+import type { SourcePhoto, PhotoSpaceMeta } from "photospace-core";
 
 /** 元画像ファイルを読み込み、bakePhoto()へ渡せる形(RGBAピクセル込み)に変換する */
 export async function loadSourcePhoto(filePath: string): Promise<SourcePhoto> {

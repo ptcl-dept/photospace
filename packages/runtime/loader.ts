@@ -5,6 +5,8 @@
 export interface PhotoSpaceMeta {
   version: 1;
   source: { file: string; width: number; height: number };
+  /** パッケージ内の写真ファイル名。省略時は "photo.avif"(ブラウザexportはAVIF非対応環境でWebP/PNGへフォールバックする) */
+  photo?: { file: string };
   depth: {
     width: number;
     height: number;
@@ -52,7 +54,7 @@ function worldPosition(
 
 export interface PhotoSpacePackage {
   meta: PhotoSpaceMeta;
-  /** photo.avif をデコードしたビットマップ(テクスチャソースとしてそのまま使える) */
+  /** 写真(photo.avif、またはmeta.photo.fileが指すWebP/PNG)をデコードしたビットマップ(テクスチャソースとしてそのまま使える) */
   photo: ImageBitmap;
   /** 復元済みの視差値(0..1)。 depthWidth x depthHeight */
   depth: Float32Array;
@@ -75,18 +77,19 @@ async function fetchImageRaster(url: string): Promise<{ data: Uint8ClampedArray;
   return { data: im.data, width: bitmap.width, height: bitmap.height };
 }
 
-/** baseUrl配下の photo.avif/depth.png/mask.png/normal.png/meta.json を読み込む */
+/** baseUrl配下の写真/depth.png/mask.png/normal.png/meta.json を読み込む */
 export async function loadPackage(baseUrl: string | URL): Promise<PhotoSpacePackage> {
   const normalized = typeof baseUrl === "string" && !baseUrl.endsWith("/") ? baseUrl + "/" : baseUrl;
   const base = new URL(normalized, location.href).toString();
 
   const meta: PhotoSpaceMeta = await (await fetch(new URL("meta.json", base))).json();
+  const photoFile = meta.photo?.file ?? "photo.avif";
 
   const [depthRaster, maskRaster, normalRaster, photoBlob] = await Promise.all([
     fetchImageRaster(new URL("depth.png", base).toString()),
     fetchImageRaster(new URL("mask.png", base).toString()),
     fetchImageRaster(new URL("normal.png", base).toString()),
-    (await fetch(new URL("photo.avif", base))).blob(),
+    (await fetch(new URL(photoFile, base))).blob(),
   ]);
 
   const depth = unpackDepthRG16(depthRaster.data);

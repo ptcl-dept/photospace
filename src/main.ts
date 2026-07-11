@@ -2,10 +2,8 @@ import "./style.css";
 import { Viewer } from "./viewer/gl.ts";
 import { bindDropzone } from "./ui/dropzone.ts";
 import { bindButtonGroup, bindSlider } from "./ui/controls.ts";
-import { downloadDepthPng, downloadConfig } from "./ui/exports.ts";
-import { loadDepthModel, estimateDepth, type DepthModel } from "./core/depth.ts";
-import { normalizeDisparity } from "./core/normalize.ts";
-import { DEFAULT_CONFIG, type PhotoSpaceConfig } from "./core/pack.ts";
+import { downloadPackage, rasterizeToCanvas } from "./ui/exports.ts";
+import { loadDepthModel, estimateDepth, type DepthModel, normalizeDisparity, DEFAULT_CONFIG, type PhotoSpaceConfig, type RasterF32 } from "photospace-core";
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 const cv = $<HTMLCanvasElement>("cv");
@@ -16,11 +14,25 @@ const bar = $<HTMLElement>("bar");
 const barIn = bar.firstElementChild as HTMLElement;
 const errBox = $<HTMLElement>("err");
 const stage = $<HTMLElement>("stage");
+const expPkgBtn = $<HTMLButtonElement>("expPkg");
+
+interface LoadedPhoto {
+  img: HTMLImageElement;
+  fileName: string;
+  /** モデル推論に渡したdata URL。SourcePhoto.inputとして再利用する(bakeFromDisparityでは未使用) */
+  url: string;
+  bytes: Uint8Array;
+  /** フル解像度のRGBA(ガイド画像に使用) */
+  rgba: Uint8ClampedArray;
+  /** モデル推論直後の正規化済み(0..1)disparity */
+  lowResDisparity: RasterF32;
+  normalization: { min: number; max: number };
+}
 
 let viewer: Viewer | null = null;
 let depther: DepthModel | null = null;
 let ready = false;
-let currentDepth01: Float32Array | null = null;
+let currentPhoto: LoadedPhoto | null = null;
 
 function fail(msg: string): void {
   errBox.style.display = "block";
@@ -100,8 +112,20 @@ async function loadImage(file: File): Promise<void> {
     fail("Depth estimation failed: " + (e as Error).message);
     return;
   }
-  const { data } = normalizeDisparity(result.raw);
-  currentDepth01 = data;
+  const { data, min, max } = normalizeDisparity(result.raw);
+
+  const rgba = rasterizeToCanvas(img, img.naturalWidth, img.naturalHeight)
+    .getContext("2d")!
+    .getImageData(0, 0, img.naturalWidth, img.naturalHeight).data;
+  currentPhoto = {
+    img,
+    fileName: file.name,
+    url,
+    bytes: new Uint8Array(await file.arrayBuffer()),
+    rgba,
+    lowResDisparity: { width: result.width, height: result.height, data },
+    normalization: { min, max },
+  };
 
   if (!viewer) viewer = new Viewer(cv);
   viewer.loadImageAndDepth(img, img.naturalWidth, img.naturalHeight, data, result.width, result.height);
@@ -128,23 +152,43 @@ function setPointerFromEvent(e: PointerEvent): void {
 cv.addEventListener("pointermove", setPointerFromEvent);
 cv.addEventListener("pointerdown", setPointerFromEvent);
 
-$<HTMLButtonElement>("exd").onclick = () => {
-  if (!currentDepth01 || !viewer) {
+expPkgBtn.onclick = async () => {
+  if (!currentPhoto || !viewer) {
     fail("Load an image first.");
     return;
   }
-  downloadDepthPng(currentDepth01, viewer.depthWidth, viewer.depthHeight);
-};
-
-$<HTMLButtonElement>("expCfg").onclick = () => {
-  if (!viewer) {
-    fail("Load an image first.");
-    return;
-  }
+  const photo = currentPhoto;
   const config: PhotoSpaceConfig = {
     ...DEFAULT_CONFIG,
     camera: { fovDeg: viewer.state.fov, farRange: viewer.state.far },
     sky: { threshold: viewer.state.sky },
   };
-  downloadConfig(config);
+
+  errBox.style.display = "none";
+  const prevLabel = expPkgBtn.textContent;
+  expPkgBtn.disabled = true;
+  expPkgBtn.textContent = "Baking…";
+  statusEl.textContent = "Baking package…";
+  try {
+    await downloadPackage({
+      photo: {
+        fileName: photo.fileName,
+        bytes: photo.bytes,
+        input: photo.url,
+        width: photo.img.naturalWidth,
+        height: photo.img.naturalHeight,
+        rgba: photo.rgba,
+      },
+      photoSource: photo.img,
+      lowResDisparity: photo.lowResDisparity,
+      normalization: photo.normalization,
+      config,
+    });
+    statusEl.textContent = "Running — move cursor over the photo";
+  } catch (e) {
+    fail((e as Error).message);
+  } finally {
+    expPkgBtn.disabled = false;
+    expPkgBtn.textContent = prevLabel;
+  }
 };

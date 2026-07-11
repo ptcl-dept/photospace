@@ -3,15 +3,17 @@
   "private": true,
   "version": "0.0.0",
   "type": "module",
-  "bin": {
-    "photospace": "src/cli/index.ts"
-  },
+  "license": "MIT",
+  "packageManager": "pnpm@10.18.0",
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
     "preview": "vite preview",
-    "cli": "node --experimental-strip-types src/cli/index.ts",
-    "build:runtime": "pnpm --filter photospace-runtime build"
+    "cli": "pnpm --filter photospace-cli dev",
+    "build:cli": "pnpm --filter photospace-cli build",
+    "build:runtime": "pnpm --filter photospace-runtime build",
+    "test": "node --experimental-strip-types --test packages/*/test/*.test.ts src/*/*.test.ts",
+    "typecheck": "pnpm -r --include-workspace-root exec tsc --noEmit -p tsconfig.json"
   },
   "devDependencies": {
     "@types/three": "^0.185.1",
@@ -19,12 +21,8 @@
     "vite": "^8.1.1"
   },
   "dependencies": {
-    "@huggingface/transformers": "^4.2.0",
-    "commander": "^15.0.0",
-    "glob": "^13.0.6",
-    "onnxruntime-node": "^1.27.0",
+    "photospace-core": "workspace:*",
     "photospace-runtime": "workspace:*",
-    "sharp": "^0.35.3",
     "three": "^0.185.1"
   },
   "pnpm": {

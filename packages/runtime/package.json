@@ -3,6 +3,13 @@
   "version": "0.1.0",
   "description": "Photo Space package loader — fetch and decode the photo.avif/depth.png/mask.png/normal.png/meta.json package baked by the photospace CLI, and recover world-space positions from it.",
   "type": "module",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ptcl-dept/photo-space.git",
+    "directory": "packages/runtime"
+  },
+  "keywords": ["photo-space", "depth", "webgl", "three.js"],
   "main": "./dist/loader.js",
   "module": "./dist/loader.js",
   "types": "./dist/loader.d.ts",
@@ -16,10 +23,14 @@
     "dist"
   ],
   "sideEffects": false,
+  "publishConfig": {
+    "access": "public"
+  },
   "scripts": {
-    "build": "tsup loader.ts --format esm --out-dir dist --clean && tsc -p tsconfig.json --outDir dist"
+    "build": "tsup loader.ts --format esm --out-dir dist --clean && tsc -p tsconfig.json --outDir dist",
+    "prepublishOnly": "pnpm build"
   },
   "devDependencies": {
-    "tsup": "^8.3.5"
+    "tsup": "^8.5.1"
   }
 }

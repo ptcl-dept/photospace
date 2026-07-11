@@ -1,4 +1,4 @@
-import { pipeline, type PretrainedModelOptions, type DepthEstimationPipeline } from "@huggingface/transformers";
+import { pipeline, env, type PretrainedModelOptions, type DepthEstimationPipeline } from "@huggingface/transformers";
 
 export const MODEL_NAME = "onnx-community/depth-anything-v2-small";
 export const MODEL_REVISION = "main";
@@ -28,6 +28,18 @@ export async function loadDepthModel(opts?: {
   const progress_callback = opts?.onProgress
     ? (p: ProgressEvent) => opts.onProgress!(p)
     : undefined;
+
+  if (isBrowser && !globalThis.crossOriginIsolated) {
+    // マルチスレッドWASMはSharedArrayBufferを要求するため、COOP/COEPヘッダーのない
+    // (=クロスオリジン分離されていない)ページではシングルスレッドに固定する。
+    // onnxruntime-webにも自前のSAB検出フォールバックがあるが、意図を明示しておく。
+    // 分離済み環境ではマルチスレッドの性能を活かすため固定しない。
+    // ※ DevToolsに出る「SharedArrayBuffer ... cross-origin isolated」警告は
+    //   onnxruntime-webのWASMグルーが起動時に共有メモリをprobeするためのもので、
+    //   この設定に関わらず表示される非致命的なwarning。
+    const wasm = env.backends.onnx?.wasm;
+    if (wasm) wasm.numThreads = 1;
+  }
 
   const candidates: PretrainedModelOptions[] = isBrowser
     ? [

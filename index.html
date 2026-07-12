@@ -15,8 +15,8 @@
 <div id="wrap" class="app-layout">
   <div id="stage" class="app-layout__stage">
     <div class="dropzone-stack">
-      <div id="drop" class="dropzone card"><b>Drop a photo</b> or click to select<br><br>
-        First run downloads a depth model (~25–50MB).<br>Inference and rendering all happen inside this browser.</div>
+      <label id="drop" class="dropzone card" for="file" role="button" tabindex="0"><b>Drop a photo</b> or click to select<br><br>
+        First run downloads a depth model (~25–50MB).<br>Inference and rendering all happen inside this browser.</label>
       <div id="bar" class="progress-bar card" role="progressbar" aria-label="Model download progress" aria-valuemin="0" aria-valuemax="100"><div class="progress-bar__fill"></div></div>
     </div>
     <canvas id="cv" class="photo-canvas" style="display:none"></canvas>
@@ -33,7 +33,7 @@
       </div>
     </div>
 
-    <div class="control-group card"><label class="control-group__label">Effect</label>
+    <div class="control-group card"><div class="control-group__label">Effect</div>
       <div class="button-group">
         <button id="m0" class="button is-active">Ripple</button>
         <button id="m1" class="button">Torch</button>
@@ -41,14 +41,14 @@
       </div>
     </div>
 
-    <div class="control-group card"><label class="control-group__label">Distance</label>
+    <div class="control-group card"><div class="control-group__label">Distance</div>
       <div class="button-group">
         <button id="s0" class="button is-active">World 3D</button>
         <button id="s1" class="button">Screen 2D</button>
       </div>
     </div>
 
-    <div class="control-group card"><label class="control-group__label">View</label>
+    <div class="control-group card"><div class="control-group__label">View</div>
       <div class="button-group">
         <button id="v0" class="button is-active">Result</button>
         <button id="v1" class="button">Depth</button>
@@ -56,10 +56,10 @@
       </div>
     </div>
 
-    <div class="control-group card"><label class="control-group__label">Camera / Depth</label>
-      <div class="slider-control"><span class="slider-control__name">FOV</span><input class="slider-control__input" type="range" id="fov" min="30" max="100" step="1" value="55"><span class="slider-control__value" id="fovV">55°</span></div>
-      <div class="slider-control"><span class="slider-control__name">Depth range</span><input class="slider-control__input" type="range" id="far" min="3" max="40" step="0.5" value="12"><span class="slider-control__value" id="farV">12</span></div>
-      <div class="slider-control"><span class="slider-control__name">Sky threshold</span><input class="slider-control__input" type="range" id="sky" min="0" max="0.25" step="0.005" value="0.03"><span class="slider-control__value" id="skyV">.03</span></div>
+    <div class="control-group card"><div class="control-group__label">Camera / Depth</div>
+      <div class="slider-control"><label class="slider-control__name" for="fov">FOV</label><input class="slider-control__input" type="range" id="fov" min="30" max="100" step="1" value="55"><span class="slider-control__value" id="fovV">55°</span></div>
+      <div class="slider-control"><label class="slider-control__name" for="far">Depth range</label><input class="slider-control__input" type="range" id="far" min="3" max="40" step="0.5" value="12"><span class="slider-control__value" id="farV">12</span></div>
+      <div class="slider-control"><label class="slider-control__name" for="sky">Sky threshold</label><input class="slider-control__input" type="range" id="sky" min="0" max="0.25" step="0.005" value="0.03"><span class="slider-control__value" id="skyV">.03</span></div>
     </div>
 
     <div id="hint" class="hint-panel card">

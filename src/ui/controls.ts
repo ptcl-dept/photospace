@@ -1,9 +1,17 @@
 export function bindButtonGroup(ids: string[], onSelect: (index: number) => void): void {
   const els = ids.map((id) => document.getElementById(id) as HTMLButtonElement);
+  const setActive = (index: number) => {
+    els.forEach((e, j) => {
+      const active = j === index;
+      e.classList.toggle("is-active", active);
+      e.setAttribute("aria-pressed", String(active));
+    });
+  };
+  setActive(els.findIndex((el) => el.classList.contains("is-active")));
   els.forEach((el, i) => {
     el.onclick = () => {
       onSelect(i);
-      els.forEach((e, j) => e.classList.toggle("is-active", j === i));
+      setActive(i);
     };
   });
 }

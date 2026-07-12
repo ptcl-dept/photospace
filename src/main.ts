@@ -61,13 +61,13 @@ $<HTMLButtonElement>("rst").onclick = () => {
 async function getModel(): Promise<DepthModel> {
   if (depther) return depther;
   statusEl.textContent = "Loading model…";
-  barIn.style.width = "0%";
+  barIn.style.transform = "scaleX(0)";
   bar.style.display = "block";
   depther = await loadDepthModel({
     onProgress: (p) => {
       if (p.status === "progress" && p.total) {
         const progress = Math.round(p.progress ?? 0);
-        barIn.style.width = progress + "%";
+        barIn.style.transform = `scaleX(${progress / 100})`;
         bar.setAttribute("aria-valuenow", String(progress));
       }
     },

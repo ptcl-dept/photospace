@@ -38,6 +38,23 @@ function mkProg(gl: WebGL2RenderingContext, vs: string, fs: string): WebGLProgra
   return p;
 }
 
+interface UniformLocations {
+  uImg: WebGLUniformLocation | null;
+  uDep: WebGLUniformLocation | null;
+  uRes: WebGLUniformLocation | null;
+  uDRes: WebGLUniformLocation | null;
+  uCur: WebGLUniformLocation | null;
+  uT: WebGLUniformLocation | null;
+  uTanF: WebGLUniformLocation | null;
+  uFar: WebGLUniformLocation | null;
+  uRad: WebGLUniformLocation | null;
+  uSky: WebGLUniformLocation | null;
+  uEdge: WebGLUniformLocation | null;
+  uMode: WebGLUniformLocation | null;
+  uSpace: WebGLUniformLocation | null;
+  uView: WebGLUniformLocation | null;
+}
+
 /** 現index.htmlのWebGL2プレビュー(波紋/トーチ/等距離帯 x 結果/深度/法線ビュー)を抽出したクラス */
 export class Viewer {
   readonly canvas: HTMLCanvasElement;
@@ -49,6 +66,7 @@ export class Viewer {
 
   private gl: WebGL2RenderingContext;
   private prog: WebGLProgram;
+  private uniforms: UniformLocations;
   private texImg: WebGLTexture | null = null;
   private texDep: WebGLTexture | null = null;
   private imgW = 0;
@@ -56,6 +74,7 @@ export class Viewer {
   private depW = 0;
   private depH = 0;
   private raf = 0;
+  private readonly reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
 
   constructor(canvas: HTMLCanvasElement) {
     this.canvas = canvas;
@@ -63,6 +82,22 @@ export class Viewer {
     if (!gl) throw new Error("WebGL2に未対応のブラウザです。");
     this.gl = gl;
     this.prog = mkProg(gl, VS, FS);
+    this.uniforms = {
+      uImg: gl.getUniformLocation(this.prog, "uImg"),
+      uDep: gl.getUniformLocation(this.prog, "uDep"),
+      uRes: gl.getUniformLocation(this.prog, "uRes"),
+      uDRes: gl.getUniformLocation(this.prog, "uDRes"),
+      uCur: gl.getUniformLocation(this.prog, "uCur"),
+      uT: gl.getUniformLocation(this.prog, "uT"),
+      uTanF: gl.getUniformLocation(this.prog, "uTanF"),
+      uFar: gl.getUniformLocation(this.prog, "uFar"),
+      uRad: gl.getUniformLocation(this.prog, "uRad"),
+      uSky: gl.getUniformLocation(this.prog, "uSky"),
+      uEdge: gl.getUniformLocation(this.prog, "uEdge"),
+      uMode: gl.getUniformLocation(this.prog, "uMode"),
+      uSpace: gl.getUniformLocation(this.prog, "uSpace"),
+      uView: gl.getUniformLocation(this.prog, "uView"),
+    };
   }
 
   loadImageAndDepth(img: TexImageSource, imgW: number, imgH: number, depthData: Float32Array, depW: number, depH: number): void {
@@ -129,7 +164,7 @@ export class Viewer {
     const gl = this.gl;
     const ts = t * 0.001;
 
-    if (t - this.lastMoveAt > 4000) {
+    if (!this.reducedMotion.matches && t - this.lastMoveAt > 4000) {
       this.cursorTarget = [0.5 + 0.3 * Math.sin(ts * 0.45), 0.45 + 0.22 * Math.sin(ts * 0.33 + 1.7)];
     }
     this.cursorSmoothed[0] += (this.cursorTarget[0] - this.cursorSmoothed[0]) * 0.1;
@@ -141,21 +176,21 @@ export class Viewer {
     gl.bindTexture(gl.TEXTURE_2D, this.texImg);
     gl.activeTexture(gl.TEXTURE1);
     gl.bindTexture(gl.TEXTURE_2D, this.texDep);
-    const u = (n: string) => gl.getUniformLocation(this.prog, n);
-    gl.uniform1i(u("uImg"), 0);
-    gl.uniform1i(u("uDep"), 1);
-    gl.uniform2f(u("uRes"), this.canvas.width, this.canvas.height);
-    gl.uniform2f(u("uDRes"), this.depW, this.depH);
-    gl.uniform2f(u("uCur"), this.cursorSmoothed[0], this.cursorSmoothed[1]);
-    gl.uniform1f(u("uT"), ts);
-    gl.uniform1f(u("uTanF"), Math.tan((this.state.fov * Math.PI) / 360));
-    gl.uniform1f(u("uFar"), this.state.far);
-    gl.uniform1f(u("uRad"), this.state.rad);
-    gl.uniform1f(u("uSky"), this.state.sky);
-    gl.uniform1f(u("uEdge"), this.state.edg);
-    gl.uniform1i(u("uMode"), this.state.mode);
-    gl.uniform1i(u("uSpace"), this.state.space);
-    gl.uniform1i(u("uView"), this.state.view);
+    const u = this.uniforms;
+    gl.uniform1i(u.uImg, 0);
+    gl.uniform1i(u.uDep, 1);
+    gl.uniform2f(u.uRes, this.canvas.width, this.canvas.height);
+    gl.uniform2f(u.uDRes, this.depW, this.depH);
+    gl.uniform2f(u.uCur, this.cursorSmoothed[0], this.cursorSmoothed[1]);
+    gl.uniform1f(u.uT, ts);
+    gl.uniform1f(u.uTanF, Math.tan((this.state.fov * Math.PI) / 360));
+    gl.uniform1f(u.uFar, this.state.far);
+    gl.uniform1f(u.uRad, this.state.rad);
+    gl.uniform1f(u.uSky, this.state.sky);
+    gl.uniform1f(u.uEdge, this.state.edg);
+    gl.uniform1i(u.uMode, this.state.mode);
+    gl.uniform1i(u.uSpace, this.state.space);
+    gl.uniform1i(u.uView, this.state.view);
     gl.drawArrays(gl.TRIANGLES, 0, 3);
     this.raf = requestAnimationFrame(this.renderFrame);
   };

@@ -187,6 +187,10 @@
     transition: background 0.15s, border-color 0.15s, color 0.15s;
   }
 
+  .dropzone:focus-visible {
+    box-shadow: 0 0 0 2px var(--color-accent);
+  }
+
   .dropzone b {
     color: var(--color-ink);
     font-weight: 500;
@@ -265,8 +269,10 @@
     background: var(--color-accent);
     border-radius: var(--radius-sm);
     height: 100%;
-    transition: width 0.2s;
-    width: 0%;
+    transform: scaleX(0);
+    transform-origin: left;
+    transition: transform 0.2s;
+    width: 100%;
   }
 
   .error-message {
@@ -290,12 +296,14 @@
 }
 
 @layer states {
-  button:hover {
-    background: var(--color-accent);
-    border-color: var(--color-accent);
-    color: var(--color-paper);
+  @media (hover: hover) and (pointer: fine) {
+    button:hover {
+      background: var(--color-accent);
+      border-color: var(--color-accent);
+      color: var(--color-paper);
+    }
   }
-  
+
   .dropzone.is-dragging {
     background: var(--color-ink-05);
     border-color: var(--color-ink-45);

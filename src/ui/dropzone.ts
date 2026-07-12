@@ -1,5 +1,9 @@
 export function bindDropzone(dropEl: HTMLElement, fileInput: HTMLInputElement, onFile: (file: File) => void): void {
-  dropEl.onclick = () => fileInput.click();
+  dropEl.addEventListener("keydown", (e) => {
+    if (e.key !== "Enter" && e.key !== " ") return;
+    e.preventDefault();
+    fileInput.click();
+  });
   ["dragover", "dragenter"].forEach((ev) =>
     dropEl.addEventListener(ev, (e) => {
       e.preventDefault();

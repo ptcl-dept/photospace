@@ -46,8 +46,6 @@ bindButtonGroup(["v0", "v1", "v2"], (i) => viewer && (viewer.state.view = i as 0
 bindSlider("fov", "fovV", (v) => viewer && (viewer.state.fov = v), (v) => v + "°");
 bindSlider("far", "farV", (v) => viewer && (viewer.state.far = v), (v) => v.toFixed(1).replace(/\.0$/, ""));
 bindSlider("sky", "skyV", (v) => viewer && (viewer.state.sky = v), (v) => v.toFixed(3).replace(/^0/, ""));
-bindSlider("rad", "radV", (v) => viewer && (viewer.state.rad = v), (v) => v.toFixed(2).replace(/0$/, ""));
-bindSlider("edg", "edgV", (v) => viewer && (viewer.state.edg = v), (v) => v.toFixed(3).replace(/^0/, ""));
 
 bindDropzone(drop, fileInput, loadImage);
 

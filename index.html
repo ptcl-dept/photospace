@@ -53,11 +53,6 @@
       <div class="slider-control"><span class="slider-control__name">Sky threshold</span><input class="slider-control__input" type="range" id="sky" min="0" max="0.25" step="0.005" value="0.03"><span class="slider-control__value" id="skyV">.03</span></div>
     </div>
 
-    <div class="control-group card"><label class="control-group__label">Effect tuning</label>
-      <div class="slider-control"><span class="slider-control__name">Radius</span><input class="slider-control__input" type="range" id="rad" min="0.1" max="4" step="0.05" value="1.0"><span class="slider-control__value" id="radV">1.0</span></div>
-      <div class="slider-control"><span class="slider-control__name">Edge suppression</span><input class="slider-control__input" type="range" id="edg" min="0.01" max="0.2" step="0.005" value="0.05"><span class="slider-control__value" id="edgV">.05</span></div>
-    </div>
-
     <div class="control-group card"><label class="control-group__label">Export</label>
       <div class="button-group">
         <button id="expPkg" class="button">Package (.zip)</button>
@@ -69,8 +64,7 @@
       Package (.zip) bakes the current photo at full resolution — guided-filter depth upsample,
       sky/edge masks, world normals — and downloads the same 5-file package photospace-cli bake
       and photospace-runtime read (photo + depth.png/mask.png/normal.png/meta.json). The photo is
-      encoded as AVIF where supported, falling back to WebP/PNG (recorded in meta.json). Edge
-      suppression keeps the effect from bleeding across depth discontinuities (silhouettes).
+      encoded as AVIF where supported, falling back to WebP/PNG (recorded in meta.json).
     </div>
   </div>
 </div>

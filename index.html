@@ -26,6 +26,13 @@
   <div id="rail" class="control-rail">
     <div id="err" class="error-message card"></div>
 
+    <div class="rail-action card">
+      <div class="button-group">
+        <button id="rst" class="button">Change photo</button>
+        <button id="expPkg" class="button">Download package (.zip)</button>
+      </div>
+    </div>
+
     <div class="control-group card"><label class="control-group__label">Effect</label>
       <div class="button-group">
         <button id="m0" class="button is-active">Ripple</button>
@@ -53,13 +60,6 @@
       <div class="slider-control"><span class="slider-control__name">FOV</span><input class="slider-control__input" type="range" id="fov" min="30" max="100" step="1" value="55"><span class="slider-control__value" id="fovV">55°</span></div>
       <div class="slider-control"><span class="slider-control__name">Depth range</span><input class="slider-control__input" type="range" id="far" min="3" max="40" step="0.5" value="12"><span class="slider-control__value" id="farV">12</span></div>
       <div class="slider-control"><span class="slider-control__name">Sky threshold</span><input class="slider-control__input" type="range" id="sky" min="0" max="0.25" step="0.005" value="0.03"><span class="slider-control__value" id="skyV">.03</span></div>
-    </div>
-
-    <div class="control-group card"><label class="control-group__label">Export</label>
-      <div class="button-group">
-        <button id="expPkg" class="button">Package (.zip)</button>
-        <button id="rst" class="button">New photo</button>
-      </div>
     </div>
 
     <div id="hint" class="hint-panel card">

@@ -22,19 +22,20 @@
     "access": "public"
   },
   "scripts": {
-    "build": "tsup src/index.ts --format esm --out-dir dist --clean",
+    "build": "tsup",
     "dev": "node --experimental-strip-types src/index.ts",
     "prepublishOnly": "pnpm build"
   },
   "dependencies": {
+    "@huggingface/transformers": "^4.2.0",
     "commander": "^15.0.0",
     "glob": "^13.0.6",
     "onnxruntime-node": "^1.27.0",
-    "photospace-core": "workspace:*",
     "sharp": "^0.35.3"
   },
   "devDependencies": {
     "@types/node": "^26.1.1",
+    "photospace-core": "workspace:*",
     "tsup": "^8.5.1",
     "typescript": "~6.0.2"
   }

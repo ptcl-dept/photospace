@@ -8,6 +8,7 @@ import { loadDepthModel, estimateDepth, type DepthModel, normalizeDisparity, DEF
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 const cv = $<HTMLCanvasElement>("cv");
 const drop = $<HTMLElement>("drop");
+const dropStack = drop.parentElement as HTMLElement;
 const fileInput = $<HTMLInputElement>("file");
 const statusEl = $<HTMLElement>("status");
 const bar = $<HTMLElement>("bar");
@@ -53,18 +54,21 @@ $<HTMLButtonElement>("rst").onclick = () => {
   ready = false;
   viewer?.stop();
   cv.style.display = "none";
-  drop.style.display = "block";
+  dropStack.style.display = "flex";
   statusEl.textContent = "Idle";
 };
 
 async function getModel(): Promise<DepthModel> {
   if (depther) return depther;
   statusEl.textContent = "Loading model…";
+  barIn.style.width = "0%";
   bar.style.display = "block";
   depther = await loadDepthModel({
     onProgress: (p) => {
       if (p.status === "progress" && p.total) {
-        barIn.style.width = Math.round(p.progress ?? 0) + "%";
+        const progress = Math.round(p.progress ?? 0);
+        barIn.style.width = progress + "%";
+        bar.setAttribute("aria-valuenow", String(progress));
       }
     },
   });
@@ -128,7 +132,7 @@ async function loadImage(file: File): Promise<void> {
   if (!viewer) viewer = new Viewer(cv);
   viewer.loadImageAndDepth(img, img.naturalWidth, img.naturalHeight, data, result.width, result.height);
 
-  drop.style.display = "none";
+  dropStack.style.display = "none";
   cv.style.display = "block";
   viewer.fitCanvas(stage);
   ready = true;

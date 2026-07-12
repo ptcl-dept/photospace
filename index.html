@@ -14,14 +14,16 @@
 
 <div id="wrap" class="app-layout">
   <div id="stage" class="app-layout__stage">
-    <div id="drop" class="dropzone card"><b>Drop a photo</b> or click to select<br><br>
-      First run downloads a depth model (~25–50MB).<br>Inference and rendering all happen inside this browser.</div>
+    <div class="dropzone-stack">
+      <div id="drop" class="dropzone card"><b>Drop a photo</b> or click to select<br><br>
+        First run downloads a depth model (~25–50MB).<br>Inference and rendering all happen inside this browser.</div>
+      <div id="bar" class="progress-bar card" role="progressbar" aria-label="Model download progress" aria-valuemin="0" aria-valuemax="100"><div class="progress-bar__fill"></div></div>
+    </div>
     <canvas id="cv" class="photo-canvas" style="display:none"></canvas>
     <input type="file" id="file" accept="image/*" style="display:none">
   </div>
 
   <div id="rail" class="control-rail">
-    <div id="bar" class="progress-bar card"><div class="progress-bar__fill"></div></div>
     <div id="err" class="error-message card"></div>
 
     <div class="control-group card"><label class="control-group__label">Effect</label>

@@ -170,6 +170,14 @@
     touch-action: none;
   }
 
+  .dropzone-stack {
+    display: flex;
+    flex-direction: column;
+    gap: calc(var(--space) * 2);
+    max-width: min(100%, 40rem);
+    width: 100%;
+  }
+
   .dropzone {
     border-color: var(--color-ink-15);
     border-style: dashed;
@@ -246,6 +254,7 @@
     height: calc(var(--space) * 1);
     overflow: hidden;
     padding: 0;
+    width: 100%;
   }
 
   .progress-bar__fill {

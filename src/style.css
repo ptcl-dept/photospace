@@ -24,13 +24,13 @@
 
     /*
      * Fluid typography / spacing, Utopia-style linear interpolation
-     * between 375px (mobile) and 1440px (desktop) viewports.
+     * between 360px (mobile) and 1440px (desktop) viewports.
      * clamp(min, min + slope*100vw, max) - see:
      * https://yuheiy.com/blog/2025/designing-the-in-between
      */
-    --fs-base: clamp(0.75rem, 0.706rem + 0.1878vw, 0.875rem);
+    --fs-base: clamp(0.75rem, 0.7083rem + 0.1852vw, 0.875rem);
 
-    --space: clamp(0.25rem, 0.1913rem + 0.2504vw, 0.4167rem);
+    --space: clamp(0.25rem, 0.2292rem + 0.0926vw, 0.3125rem);
     --size-rail-width: clamp(15rem, 20vw, 20rem);
   }
 }
@@ -50,6 +50,7 @@
     color: var(--color-ink);
     font-family: var(--font-sans);
     font-size: var(--fs-base);
+    line-height: 1.5;
   }
 
   button {
@@ -62,12 +63,6 @@
     font-size: var(--fs-base);
     padding: calc(var(--space) * 1) calc(var(--space) * 2);
     transition: background 0.12s, color 0.12s, border-color 0.12s;
-  }
-
-  button:hover {
-    background: var(--color-ink-05);
-    border-color: var(--color-ink-15);
-    color: var(--color-ink);
   }
 
   input[type="range"] {
@@ -187,7 +182,7 @@
     font-family: var(--font-sans);
     font-size: var(--fs-base);
     line-height: 1.5;
-    padding: calc(var(--space) * 12) calc(var(--space) * 8);
+    padding: calc(var(--space) * 20) calc(var(--space) * 10);
     text-align: center;
     transition: background 0.15s, border-color 0.15s, color 0.15s;
   }
@@ -295,6 +290,12 @@
 }
 
 @layer states {
+  button:hover {
+    background: var(--color-accent);
+    border-color: var(--color-accent);
+    color: var(--color-paper);
+  }
+  
   .dropzone.is-dragging {
     background: var(--color-ink-05);
     border-color: var(--color-ink-45);

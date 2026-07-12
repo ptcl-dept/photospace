@@ -1,14 +1,14 @@
 # photospace-runtime
 
-[`photospace-cli`](../cli) が焼き出したパッケージ5点セット(`photo.avif` / `depth.png` / `mask.png` / `normal.png` / `meta.json`)をブラウザで読み込み、デコード済みラスタとワールド座標復元用のヘルパーを返す軽量ローダー。特定のレンダラーに依存しないため、three.js・raw WebGL・Canvas2D いずれからも使える。
+A lightweight loader that reads the five-file package set (`photo.avif` / `depth.png` / `mask.png` / `normal.png` / `meta.json`) baked by [`photospace-cli`](https://github.com/ptcl-dept/photo-space/tree/main/packages/cli) in the browser, and returns decoded rasters plus helpers for recovering world-space positions. It is renderer-agnostic, so it works with three.js, raw WebGL, or Canvas2D.
 
-## インストール
+## Install
 
 ```bash
 npm install photospace-runtime
 ```
 
-## 使い方
+## Usage
 
 ```ts
 import { loadPackage, worldPositionFromMeta } from "photospace-runtime";
@@ -22,21 +22,25 @@ const pkg = await loadPackage("/sample/source/");
 const [x, y, z] = worldPositionFromMeta(pkg.meta, u, v, disparity);
 ```
 
-`loadPackage(baseUrl)` は `baseUrl` 配下の5ファイルを並列 fetch し、16bit パック済みの `depth.png`(R=上位8bit/G=下位8bit)をデコードして `Float32Array` に復元する。`meta.json` の `camera.fovDeg` / `camera.farRange` だけでワールド座標を計算できるので、シェーダー側は追加のパラメータを持つ必要がない。
+`loadPackage(baseUrl)` fetches the five files under `baseUrl` in parallel and decodes the 16-bit packed `depth.png` (R = high 8 bits / G = low 8 bits) back into a `Float32Array`. World-space positions can be computed from just `camera.fovDeg` / `camera.farRange` in `meta.json`, so the shader side needs no extra parameters.
 
-自前のシェーダーに直接組み込みたい場合は `GLSL_SNIPPETS.unpackAndSampleDepth` / `GLSL_SNIPPETS.worldPosition` を使う。RG16 パックは GPU のバイリニア補間が使えないため、`unpackAndSampleDepth` は NEAREST サンプリング + 手動バイリニアで読む。
+To wire it directly into your own shader, use `GLSL_SNIPPETS.unpackAndSampleDepth` / `GLSL_SNIPPETS.worldPosition`. Because the RG16 packing cannot use the GPU's bilinear interpolation, `unpackAndSampleDepth` reads with NEAREST sampling plus manual bilinear filtering.
 
-three.js での実装例は [`examples/three-scene`](../../examples/three-scene) を参照。
+See [`examples/three-scene`](https://github.com/ptcl-dept/photo-space/tree/main/examples/three-scene) for a three.js implementation.
 
-## パッケージフォーマット
+## Package format
 
-[`docs/package-format.md`](../../docs/package-format.md) にフィールドの詳細と互換性ポリシーをまとめている。`meta.json` の `version` フィールドで将来のフォーマット変更に備える。
+[`docs/package-format.md`](https://github.com/ptcl-dept/photo-space/blob/main/docs/package-format.md) documents the fields in detail along with the compatibility policy. The `version` field in `meta.json` guards against future format changes.
 
-## ソースからビルド
+## Building from source
 
 ```bash
 pnpm install
 pnpm --filter photospace-runtime build
 ```
 
-`loader.ts` を `dist/loader.js`(ESM)+ `dist/loader.d.ts` にビルドする。
+This builds `loader.ts` into `dist/loader.js` (ESM) + `dist/loader.d.ts`.
+
+## License
+
+MIT

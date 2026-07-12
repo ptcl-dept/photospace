@@ -1,62 +1,65 @@
 # Photo Space
 
-1枚の写真から単眼深度推定でパララックス表現用のアセット一式(`photo.avif` / `depth.png` / `mask.png` / `normal.png` / `meta.json`)を作る。ブラウザだけで完結するデモビューワと、複数枚を一括処理する CLI の両方を持つ。
+Turn a single photo into a set of assets for parallax rendering using monocular depth estimation (`photo.avif` / `depth.png` / `mask.png` / `normal.png` / `meta.json`). The project ships both a browser demo viewer that runs entirely in the browser and a CLI for batch-processing many photos.
 
-- **ブラウザデモ**(このリポジトリのルートアプリ): 写真をドロップすると、ブラウザ内(WebGPU/WASM)で深度推定 → カーソル追従の視差エフェクトをその場でプレビューできる。すべてローカルで完結し、サーバーには何も送信しない。「Package (.zip)」ボタンで CLI と同じ5点セット(`photo.avif`/`depth.png`/`mask.png`/`normal.png`/`meta.json`)をブラウザだけで焼いて zip ダウンロードでき、1枚だけなら CLI なしで完結する(AVIF エンコード非対応ブラウザでは写真を WebP/PNG で書き出し、`meta.json` に記録する)。
-- **[`photospace-cli`](packages/cli)**: 同じ推論・パッキングロジックを Node で動かし、フォルダ内の画像をまとめてベイクする CLI(npm 公開予定)。
-- **[`photospace-runtime`](packages/runtime)**: CLI が書き出したパッケージ5点セットをブラウザで読み込み、ワールド座標を復元する軽量ローダー(npm 公開予定)。three.js 等、任意のレンダラーから使える。
+- **Browser demo** (the root app in this repo): drop in a photo and it estimates depth in-browser (WebGPU/WASM), then previews a cursor-following parallax effect on the spot. Everything runs locally — nothing is uploaded to a server. The **Package (.zip)** button bakes the same five-file set as the CLI (`photo.avif`/`depth.png`/`mask.png`/`normal.png`/`meta.json`) entirely in the browser and downloads it as a zip, so a single photo can be processed without the CLI (on browsers without AVIF encoding support, the photo is written as WebP/PNG and recorded in `meta.json`).
+- **[`photospace-cli`](packages/cli)**: runs the same inference and packing logic in Node to bake a whole folder of images at once. Distributed on npm as `photospace-cli`.
+- **[`photospace-runtime`](packages/runtime)**: a lightweight loader that reads the five-file package baked by the CLI in the browser and recovers world-space positions. Renderer-agnostic — usable from three.js or any other renderer. Distributed on npm as `photospace-runtime`.
 
-## リポジトリ構成
+## Repository layout
 
 ```
 .
-├── src/                 # ブラウザデモアプリ(Vite, private)
-├── examples/three-scene # three.js からパッケージを読み込む受け入れ検証シーン
-├── public/sample/source # サンプルのベイク済みパッケージ
+├── src/                 # Browser demo app (Vite, private)
+├── examples/three-scene # Acceptance-test scene that loads a package from three.js
+├── public/sample/source # A sample pre-baked package
 └── packages/
-    ├── core/            # 推論・正規化・アップサンプリング・パッキングの共有ロジック(非公開、viewer/CLI 双方が依存)
-    ├── cli/              → photospace-cli としてnpm公開
-    └── runtime/           → photospace-runtime としてnpm公開
+    ├── core/            # Shared inference / normalization / upsampling / packing logic (private, used by both the viewer and the CLI)
+    ├── cli/              → published as photospace-cli
+    └── runtime/          → published as photospace-runtime
 ```
 
-`packages/core` は viewer アプリと CLI から共有される内部パッケージで、npm には公開しない(`private: true`)。
+`packages/core` is an internal package shared by the viewer app and the CLI; it is not published to npm (`private: true`). The CLI bundles it at build time.
 
-## セットアップ
+## Setup
 
 ```bash
 pnpm install
 ```
 
-Node 20 以上が必要(CLI は `sharp` / `onnxruntime-node` のネイティブバイナリに依存)。
+Requires Node 20+ (the CLI depends on the native binaries of `sharp` and `onnxruntime-node`).
 
-## ブラウザデモを動かす
+## Running the browser demo
 
 ```bash
 pnpm dev
 ```
 
-初回はブラウザ内で深度推定モデル(~25–50MB, [`onnx-community/depth-anything-v2-small`](https://huggingface.co/onnx-community/depth-anything-v2-small))をダウンロードする。WebGPU 対応ブラウザでは WebGPU、非対応環境では WASM にフォールバックする。
+On first run the depth estimation model (~25–50MB, [`onnx-community/depth-anything-v2-small`](https://huggingface.co/onnx-community/depth-anything-v2-small)) is downloaded in the browser. It uses WebGPU where available and falls back to WASM otherwise.
 
-## CLI を使う
-
-```bash
-pnpm --filter photospace-cli build
-node packages/cli/dist/index.js bake ./photos --out ./out
-```
-
-詳細は [`packages/cli/README.md`](packages/cli/README.md) を参照。npm 公開後は `npx photospace-cli bake ...` で直接使える。
-
-## パッケージフォーマット
-
-CLI が書き出し、runtime が読み込む5点セットの仕様は [`docs/package-format.md`](docs/package-format.md) にまとめている。
-
-## モデルのライセンスについて
-
-既定モデル `onnx-community/depth-anything-v2-small` は Apache-2.0 で商用利用可。Depth Anything V2 の Base/Large バリアントに切り替える場合は CC-BY-NC-4.0(非商用限定)なので、モデルを変更する際は必ず各モデルカードのライセンスを確認すること。
-
-## テスト・型チェック
+## Using the CLI
 
 ```bash
-pnpm test        # packages/*/test, src/*/*.test.ts のユニットテスト
-pnpm typecheck   # 全ワークスペース(ルートapp含む)の型チェック
+npx photospace-cli bake ./photos --out ./out
 ```
+
+Or install it globally with `npm install -g photospace-cli`. See [`packages/cli/README.md`](packages/cli/README.md) for details.
+
+## Package format
+
+The five-file set the CLI writes and the runtime reads is specified in [`docs/package-format.md`](docs/package-format.md).
+
+## Model license
+
+The default model `onnx-community/depth-anything-v2-small` is Apache-2.0 and permitted for commercial use. The Base/Large variants of Depth Anything V2 are CC-BY-NC-4.0 (non-commercial only), so always check each model card's license before switching models.
+
+## Tests & type-checking
+
+```bash
+pnpm test        # Unit tests in packages/*/test and src/*/*.test.ts
+pnpm typecheck   # Type-check every workspace, including the root app
+```
+
+## License
+
+MIT

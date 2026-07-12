@@ -1,19 +1,19 @@
-# パッケージフォーマット (version 1)
+# Package format (version 1)
 
-[`photospace-cli`](../packages/cli) の `bake` コマンドは、1枚の写真ごとに以下5ファイルを1ディレクトリへ書き出す。[`photospace-runtime`](../packages/runtime) はこの5点セットだけを前提に読み込む。ブラウザデモ([`src/main.ts`](../src/main.ts))の「Package (.zip)」ボタンも同じ `photospace-core` のロジックでこの5点セットを直接生成し、1つの zip にまとめてダウンロードする(CLIなしで1枚だけ試したい場合用)。
+The `bake` command of [`photospace-cli`](../packages/cli) writes the following five files into one directory per photo. [`photospace-runtime`](../packages/runtime) reads only this five-file set. The "Package (.zip)" button in the browser demo ([`src/main.ts`](../src/main.ts)) generates the same five-file set directly with the same `photospace-core` logic and bundles it into a single zip for download (for trying a single photo without the CLI).
 
 ```
 out/<name>/
-├── photo.avif    # 元写真(AVIF再エンコード。meta.photo.file 指定時は photo.webp / photo.png のことがある)
-├── depth.png     # 視差(RG16パック)
-├── mask.png      # 空マスク(R) + エッジマスク(G)
-├── normal.png    # ワールド法線(RGB)
-└── meta.json     # カメラ・正規化パラメータ
+├── photo.avif    # Source photo (re-encoded to AVIF; may be photo.webp / photo.png when meta.photo.file is set)
+├── depth.png     # Disparity (RG16 packed)
+├── mask.png      # Sky mask (R) + edge mask (G)
+├── normal.png    # World-space normals (RGB)
+└── meta.json     # Camera & normalization parameters
 ```
 
-いずれかのファイルが欠けている、または `meta.json.version` が非対応の場合、`loadPackage()` は失敗する。
+If any file is missing, or `meta.json.version` is unsupported, `loadPackage()` fails.
 
-写真のファイル名は既定で `photo.avif`。`canvas.toBlob()` の AVIF エンコードは Chrome/Edge を含む多くのブラウザで未対応のため、ブラウザ export は AVIF → WebP → PNG の順にフォールバックし、実際のファイル名を `meta.json` の `photo.file` に記録する。`photospace-runtime` の `loadPackage()` は `meta.photo?.file ?? "photo.avif"` を読む。CLI(sharp)は常に AVIF で書き出すので `photo` フィールドを省略する。
+The photo filename is `photo.avif` by default. Because AVIF encoding via `canvas.toBlob()` is unsupported in many browsers (including Chrome/Edge), the browser export falls back in the order AVIF → WebP → PNG and records the actual filename in `meta.json`'s `photo.file`. `photospace-runtime`'s `loadPackage()` reads `meta.photo?.file ?? "photo.avif"`. The CLI (sharp) always writes AVIF, so it omits the `photo` field.
 
 ## meta.json
 
@@ -21,7 +21,7 @@ out/<name>/
 interface PhotoSpaceMeta {
   version: 1;
   source: { file: string; width: number; height: number };
-  photo?: { file: string }; // パッケージ内の写真ファイル名。省略時は "photo.avif"
+  photo?: { file: string }; // Photo filename inside the package. Defaults to "photo.avif" when omitted
   depth: {
     width: number;
     height: number;
@@ -33,47 +33,47 @@ interface PhotoSpaceMeta {
   sky: { threshold: number };
   model: { name: string; revision: string };
   bakedAt: string; // ISO8601
-  sourceHash: string; // sha256(photoBytes + configJson)、CLIの再ベイクスキップ判定に使用
+  sourceHash: string; // sha256(photoBytes + configJson), used by the CLI to skip re-baking
 }
 ```
 
-- `depth.space: "disparity"` / `orientation: "near=1"`: 深度ではなく視差(近いほど値が大きい)を保持する。`depth.normalization` はモデルが出力した生の視差レンジ(推論後・正規化前)を記録しており、`depth.png` 自体には正規化済み(0..1)の値が入る。
-- `camera.fovDeg` / `camera.farRange`: 視差 → ワールド座標変換に必要な唯一のパラメータ。以下の式で z を求める(`toZ`)。
+- `depth.space: "disparity"` / `orientation: "near=1"`: stores disparity (larger value = nearer), not depth. `depth.normalization` records the raw disparity range the model output (post-inference, pre-normalization); `depth.png` itself holds normalized (0..1) values.
+- `camera.fovDeg` / `camera.farRange`: the only parameters needed for the disparity → world-space conversion. `z` is derived with the formula below (`toZ`).
 
   ```
-  disp = mix(1/farRange, 1, d)   // d: 0..1 の正規化視差
+  disp = mix(1/farRange, 1, d)   // d: normalized disparity in 0..1
   z    = 1 / disp
   x    = (u*2-1) * aspect * tan(fovDeg/2) * z
   y    = (v*2-1) *          tan(fovDeg/2) * z
   ```
 
-- `sky.threshold`: この閾値未満の視差を空とみなした(`mask.png` の R チャンネル生成に使用)値をそのまま記録している。
+- `sky.threshold`: records, as-is, the threshold below which disparity was treated as sky (used to generate the R channel of `mask.png`).
 
-## depth.png — 視差の RG16 パック
+## depth.png — RG16 packing of disparity
 
-8bit PNG では 256 段階しか表現できず深度の帯状アーティファクトが出るため、16bit 値を2チャンネルに分けて格納する。
+An 8-bit PNG can only represent 256 levels, producing banding artifacts in depth, so a 16-bit value is split across two channels.
 
 ```
-R = (d16 >> 8) & 0xff   // 上位8bit
-G =  d16       & 0xff   // 下位8bit
+R = (d16 >> 8) & 0xff   // high 8 bits
+G =  d16       & 0xff   // low 8 bits
 B = 0, A = 255
 d16 = round(clamp01(d) * 65535)
 ```
 
-復元は `d = (R*256 + G) / 65535`。GPU のバイリニア補間はこのパッキングに対して使えない(R/Gをまたぐ補間が壊れる)ため、シェーダーでサンプリングする場合は NEAREST + 手動バイリニアが必要(`photospace-runtime` の `GLSL_SNIPPETS.unpackAndSampleDepth` を参照)。
+Recovered with `d = (R*256 + G) / 65535`. The GPU's bilinear interpolation cannot be used on this packing (interpolation across R/G breaks), so sampling in a shader requires NEAREST + manual bilinear (see `photospace-runtime`'s `GLSL_SNIPPETS.unpackAndSampleDepth`).
 
 ## mask.png
 
 ```
-R = round(clamp01(skyMask)  * 255)  // 1=空
-G = round(clamp01(edgeMask) * 255)  // 1=非エッジ(シルエットに近いほど0に近づく)
+R = round(clamp01(skyMask)  * 255)  // 1 = sky
+G = round(clamp01(edgeMask) * 255)  // 1 = non-edge (approaches 0 near silhouettes)
 B = 0, A = 255
 ```
 
 ## normal.png
 
-ワールド法線(-1..1)を `n*0.5+0.5` で 0..1 にマップして RGB へ格納する(A=255)。
+World-space normals (-1..1) are mapped to 0..1 with `n*0.5+0.5` and stored in RGB (A=255).
 
-## 互換性ポリシー
+## Compatibility policy
 
-`meta.json.version` はフォーマットが後方互換性を壊す形で変わった場合にのみ上げる。`photospace-runtime` は現時点で `version: 1` のみをサポートする。将来 `version: 2` を追加する場合、`loadPackage()` は `meta.version` を見て分岐するか、非対応バージョンで明示的にエラーを投げること。
+`meta.json.version` is bumped only when the format changes in a backward-incompatible way. `photospace-runtime` currently supports `version: 1` only. If a future `version: 2` is added, `loadPackage()` must branch on `meta.version` or explicitly throw on unsupported versions.

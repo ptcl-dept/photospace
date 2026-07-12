@@ -1,28 +1,28 @@
 # photospace-cli
 
-写真から `photo.avif` / `depth.png` / `mask.png` / `normal.png` / `meta.json` のパッケージ5点セットを一括生成する CLI。単眼深度推定([Depth Anything V2](https://huggingface.co/onnx-community/depth-anything-v2-small))を Node 上(CPU)で実行し、[`photospace-runtime`](../runtime) で読み込める形式に書き出す。
+A CLI that batch-generates the five-file package set — `photo.avif` / `depth.png` / `mask.png` / `normal.png` / `meta.json` — from photos. It runs monocular depth estimation ([Depth Anything V2](https://huggingface.co/onnx-community/depth-anything-v2-small)) on Node (CPU) and writes output in a format readable by [`photospace-runtime`](https://github.com/ptcl-dept/photo-space/tree/main/packages/runtime).
 
-## インストール
+## Install
 
 ```bash
 npm install -g photospace-cli
 ```
 
-または `npx photospace-cli` でインストールせずに実行できる。
+Or run it without installing via `npx photospace-cli`.
 
-Node 20 以上が必要。`sharp` と `onnxruntime-node` のネイティブバイナリを含むため、対応プラットフォーム(macOS/Linux/Windows の x64・arm64)でのみ動作する。
+Requires Node 20+. Because it includes the native binaries of `sharp` and `onnxruntime-node`, it runs only on supported platforms (macOS/Linux/Windows, x64 and arm64).
 
-## 使い方
+## Usage
 
 ```bash
 photospace bake ./photos --out ./out
 ```
 
-- `<patterns...>`: 画像ファイルパス・globパターン・ディレクトリを複数指定できる(ディレクトリを渡すと直下の `jpg/jpeg/png/webp/avif/tiff` を対象にする)
-- `--out <dir>`: 出力先ディレクトリ(既定 `out`)。ファイルごとに `out/<ファイル名>/` へ5点セットを書き出す
-- `--config <path>`: `photospace.config.json` のパス(省略時は既定値)
+- `<patterns...>`: one or more image file paths, glob patterns, or directories (passing a directory targets the `jpg/jpeg/png/webp/avif/tiff` files directly inside it)
+- `--out <dir>`: output directory (default `out`). The five-file set is written to `out/<name>/` per file
+- `--config <path>`: path to `photospace.config.json` (defaults are used when omitted)
 
-写真バイト列 + config の SHA-256 ハッシュを `meta.json` の `sourceHash` に記録しており、同一入力で再実行した場合はベイクをスキップする。
+The SHA-256 hash of the photo bytes + config is recorded in `meta.json` as `sourceHash`, so re-running on identical input skips the bake.
 
 ## config.json
 
@@ -36,24 +36,28 @@ photospace bake ./photos --out ./out
 }
 ```
 
-| フィールド | 説明 |
+| Field | Description |
 | --- | --- |
-| `camera.fovDeg` | ビューワが使う仮想カメラの垂直FOV(度) |
-| `camera.farRange` | 視差 → 深度変換の奥行きレンジ |
-| `sky.threshold` | この値未満の視差を空とみなし `mask.png` の R チャンネルに焼き込む |
-| `depth.maxSize` | 出力する depth/mask/normal の長辺ピクセル数(ガイデッドフィルタで元写真解像度にスナップさせる) |
-| `photo.avifQuality` | `photo.avif` のエンコード品質(0–100) |
+| `camera.fovDeg` | Vertical FOV (degrees) of the virtual camera used by the viewer |
+| `camera.farRange` | Depth range for the disparity → depth conversion |
+| `sky.threshold` | Disparity below this value is treated as sky and baked into the R channel of `mask.png` |
+| `depth.maxSize` | Long-edge pixel size of the output depth/mask/normal (snapped to the source photo resolution with a guided filter) |
+| `photo.avifQuality` | Encoding quality of `photo.avif` (0–100) |
 
-ブラウザデモ側の「config.json」エクスポートボタンで、UI 上のスライダー値からこのファイルを生成できる。
+The browser demo's "config.json" export button generates this file from the slider values in the UI.
 
-## 出力フォーマット
+## Output format
 
-書き出されるパッケージの詳細は [`docs/package-format.md`](../../docs/package-format.md) を参照。
+See [`docs/package-format.md`](https://github.com/ptcl-dept/photo-space/blob/main/docs/package-format.md) for the full spec of the package written by the CLI.
 
-## ソースからビルド
+## Building from source
 
 ```bash
 pnpm install
 pnpm --filter photospace-cli build
 node packages/cli/dist/index.js bake ./photos
 ```
+
+## License
+
+MIT

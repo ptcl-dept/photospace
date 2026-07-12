@@ -3,7 +3,7 @@ export function bindButtonGroup(ids: string[], onSelect: (index: number) => void
   els.forEach((el, i) => {
     el.onclick = () => {
       onSelect(i);
-      els.forEach((e, j) => e.classList.toggle("act", j === i));
+      els.forEach((e, j) => e.classList.toggle("is-active", j === i));
     };
   });
 }

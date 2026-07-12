@@ -5,67 +5,67 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Photo Space</title>
 </head>
-<body>
-<header>
+<body class="app-shell">
+<header class="app-header">
   <h1>Photo Space</h1>
-  <span class="sub">image → depth → world-position cursor effects · all local</span>
+  <span class="app-header__sub">image → depth → world-position cursor effects · all local</span>
 </header>
-<span id="status">Idle</span>
+<span id="status" class="app-status">Idle</span>
 
-<div id="wrap">
-  <div id="stage">
-    <div id="drop" class="card"><b>Drop a photo</b> or click to select<br><br>
+<div id="wrap" class="app-layout">
+  <div id="stage" class="app-layout__stage">
+    <div id="drop" class="dropzone card"><b>Drop a photo</b> or click to select<br><br>
       First run downloads a depth model (~25–50MB).<br>Inference and rendering all happen inside this browser.</div>
-    <canvas id="cv" style="display:none"></canvas>
+    <canvas id="cv" class="photo-canvas" style="display:none"></canvas>
     <input type="file" id="file" accept="image/*" style="display:none">
   </div>
 
-  <div id="rail">
-    <div id="bar" class="card"><div></div></div>
-    <div id="err" class="card"></div>
+  <div id="rail" class="control-rail">
+    <div id="bar" class="progress-bar card"><div class="progress-bar__fill"></div></div>
+    <div id="err" class="error-message card"></div>
 
-    <div class="grp card"><label>Effect</label>
-      <div class="row">
-        <button id="m0" class="act">Ripple</button>
-        <button id="m1">Torch</button>
-        <button id="m2">Isolines</button>
+    <div class="control-group card"><label class="control-group__label">Effect</label>
+      <div class="button-group">
+        <button id="m0" class="button is-active">Ripple</button>
+        <button id="m1" class="button">Torch</button>
+        <button id="m2" class="button">Isolines</button>
       </div>
     </div>
 
-    <div class="grp card"><label>Distance</label>
-      <div class="row">
-        <button id="s0" class="act">World 3D</button>
-        <button id="s1">Screen 2D</button>
+    <div class="control-group card"><label class="control-group__label">Distance</label>
+      <div class="button-group">
+        <button id="s0" class="button is-active">World 3D</button>
+        <button id="s1" class="button">Screen 2D</button>
       </div>
     </div>
 
-    <div class="grp card"><label>View</label>
-      <div class="row">
-        <button id="v0" class="act">Result</button>
-        <button id="v1">Depth</button>
-        <button id="v2">Normal</button>
+    <div class="control-group card"><label class="control-group__label">View</label>
+      <div class="button-group">
+        <button id="v0" class="button is-active">Result</button>
+        <button id="v1" class="button">Depth</button>
+        <button id="v2" class="button">Normal</button>
       </div>
     </div>
 
-    <div class="grp card"><label>Camera / Depth</label>
-      <div class="sld"><span class="nm">FOV</span><input type="range" id="fov" min="30" max="100" step="1" value="55"><span class="vl" id="fovV">55°</span></div>
-      <div class="sld"><span class="nm">Depth range</span><input type="range" id="far" min="3" max="40" step="0.5" value="12"><span class="vl" id="farV">12</span></div>
-      <div class="sld"><span class="nm">Sky threshold</span><input type="range" id="sky" min="0" max="0.25" step="0.005" value="0.03"><span class="vl" id="skyV">.03</span></div>
+    <div class="control-group card"><label class="control-group__label">Camera / Depth</label>
+      <div class="slider-control"><span class="slider-control__name">FOV</span><input class="slider-control__input" type="range" id="fov" min="30" max="100" step="1" value="55"><span class="slider-control__value" id="fovV">55°</span></div>
+      <div class="slider-control"><span class="slider-control__name">Depth range</span><input class="slider-control__input" type="range" id="far" min="3" max="40" step="0.5" value="12"><span class="slider-control__value" id="farV">12</span></div>
+      <div class="slider-control"><span class="slider-control__name">Sky threshold</span><input class="slider-control__input" type="range" id="sky" min="0" max="0.25" step="0.005" value="0.03"><span class="slider-control__value" id="skyV">.03</span></div>
     </div>
 
-    <div class="grp card"><label>Effect tuning</label>
-      <div class="sld"><span class="nm">Radius</span><input type="range" id="rad" min="0.1" max="4" step="0.05" value="1.0"><span class="vl" id="radV">1.0</span></div>
-      <div class="sld"><span class="nm">Edge suppression</span><input type="range" id="edg" min="0.01" max="0.2" step="0.005" value="0.05"><span class="vl" id="edgV">.05</span></div>
+    <div class="control-group card"><label class="control-group__label">Effect tuning</label>
+      <div class="slider-control"><span class="slider-control__name">Radius</span><input class="slider-control__input" type="range" id="rad" min="0.1" max="4" step="0.05" value="1.0"><span class="slider-control__value" id="radV">1.0</span></div>
+      <div class="slider-control"><span class="slider-control__name">Edge suppression</span><input class="slider-control__input" type="range" id="edg" min="0.01" max="0.2" step="0.005" value="0.05"><span class="slider-control__value" id="edgV">.05</span></div>
     </div>
 
-    <div class="grp card"><label>Export</label>
-      <div class="row">
-        <button id="expPkg">Package (.zip)</button>
-        <button id="rst">New photo</button>
+    <div class="control-group card"><label class="control-group__label">Export</label>
+      <div class="button-group">
+        <button id="expPkg" class="button">Package (.zip)</button>
+        <button id="rst" class="button">New photo</button>
       </div>
     </div>
 
-    <div id="hint" class="card">
+    <div id="hint" class="hint-panel card">
       Package (.zip) bakes the current photo at full resolution — guided-filter depth upsample,
       sky/edge masks, world normals — and downloads the same 5-file package photospace-cli bake
       and photospace-runtime read (photo + depth.png/mask.png/normal.png/meta.json). The photo is

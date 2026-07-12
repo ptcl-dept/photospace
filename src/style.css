@@ -1,263 +1,291 @@
-:root {
-  --serif: Georgia, "Iowan Old Style", "Palatino Linotype", "Times New Roman", serif;
-  --mono: "SF Mono", ui-monospace, "JetBrains Mono", Menlo, Consolas, monospace;
+@import "@fontsource/ibm-plex-sans/latin-400.css";
+@import "@fontsource/ibm-plex-sans/latin-500.css";
+@import "@fontsource/ibm-plex-mono/latin-400.css";
 
-  --ink: #000;
-  --paper: #fff;
+@layer reset, tokens, base, layout, components, states;
 
-  --ink-04: rgba(0, 0, 0, 0.04);
-  --ink-06: rgba(0, 0, 0, 0.06);
-  --ink-10: rgba(0, 0, 0, 0.1);
-  --ink-16: rgba(0, 0, 0, 0.16);
-  --ink-45: rgba(0, 0, 0, 0.45);
-  --ink-70: rgba(0, 0, 0, 0.7);
+@layer tokens {
+  :root {
+    --font-sans: "IBM Plex Sans", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    --font-mono: "IBM Plex Mono", "SF Mono", ui-monospace, Menlo, Consolas, monospace;
 
-  --paper-70: rgba(255, 255, 255, 0.7);
+    --color-ink: #000;
+    --color-paper: #fff;
+    --color-accent: #00f;
 
-  --radius: 8px;
-  --radius-sm: 4px;
+    --color-ink-05: rgba(0, 0, 0, 0.05);
+    --color-ink-10: rgba(0, 0, 0, 0.1);
+    --color-ink-15: rgba(0, 0, 0, 0.15);
+    --color-ink-45: rgba(0, 0, 0, 0.45);
+    --color-ink-70: rgba(0, 0, 0, 0.7);
 
-  /*
-   * Fluid typography / spacing, Utopia-style linear interpolation
-   * between 375px (mobile) and 1440px (desktop) viewports.
-   * clamp(min, min + slope*100vw, max) — see:
-   * https://yuheiy.com/blog/2025/designing-the-in-between
-   */
-  /* single fluid size, 12px (375px viewport) → 14px (1440px viewport) */
-  --fs: clamp(0.75rem, 0.706rem + 0.1878vw, 0.875rem);
+    --radius-md: 8px;
+    --radius-sm: 4px;
 
-  --sp-wrap-pad: clamp(0.75rem, 0.5739rem + 0.7512vw, 1.25rem);
-  --sp-wrap-gap: clamp(0.625rem, 0.493rem + 0.5634vw, 1rem);
-  --sp-header-pad-y: clamp(0.875rem, 0.787rem + 0.3756vw, 1.125rem);
-  --sp-header-pad-x: clamp(1.125rem, 0.9489rem + 0.7512vw, 1.625rem);
-  --sp-header-margin: clamp(0.75rem, 0.5739rem + 0.7512vw, 1.25rem);
-  --sp-grp-pad: clamp(0.875rem, 0.787rem + 0.3756vw, 1.125rem);
-  --sp-drop-pad-y: clamp(3rem, 2.2958rem + 3.0047vw, 5rem);
-  --sp-drop-pad-x: clamp(1.75rem, 1.2218rem + 2.2535vw, 3.25rem);
-  --sp-rail-width: clamp(15rem, 13.6796rem + 5.6338vw, 18.75rem);
-  --sp-rail-gap: clamp(0.625rem, 0.537rem + 0.3756vw, 0.875rem);
-  --sp-stage-pad: clamp(1.125rem, 0.9049rem + 0.939vw, 1.75rem);
+    /*
+     * Fluid typography / spacing, Utopia-style linear interpolation
+     * between 375px (mobile) and 1440px (desktop) viewports.
+     * clamp(min, min + slope*100vw, max) - see:
+     * https://yuheiy.com/blog/2025/designing-the-in-between
+     */
+    --fs-base: clamp(0.75rem, 0.706rem + 0.1878vw, 0.875rem);
+
+    --space: clamp(0.25rem, 0.1913rem + 0.2504vw, 0.4167rem);
+    --size-rail-width: clamp(15rem, 20vw, 20rem);
+  }
 }
 
-* {
-  margin: 0;
-  padding: 0;
-  box-sizing: border-box;
+@layer reset {
+  * {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+  }
 }
 
-body {
-  background: var(--paper);
-  color: var(--ink);
-  font-family: var(--serif);
-  font-size: var(--fs);
-  min-height: 100vh;
+@layer base {
+  .app-shell {
+    min-height: 100vh;
+    background: var(--color-paper);
+    color: var(--color-ink);
+    font-family: var(--font-sans);
+    font-size: var(--fs-base);
+  }
+
+  button {
+    border: 1px solid var(--color-ink-10);
+    border-radius: var(--radius-sm);
+    background: var(--color-paper);
+    color: var(--color-ink);
+    cursor: pointer;
+    font-family: var(--font-mono);
+    font-size: var(--fs-base);
+    padding: calc(var(--space) * 1) calc(var(--space) * 2);
+    transition: background 0.12s, color 0.12s, border-color 0.12s;
+  }
+
+  button:hover {
+    background: var(--color-ink-05);
+    border-color: var(--color-ink-15);
+    color: var(--color-ink);
+  }
+
+  input[type="range"] {
+    accent-color: var(--color-accent);
+  }
 }
 
-.card {
-  background: var(--ink-04);
-  border: 1px solid var(--ink-06);
-  border-radius: var(--radius);
-}
+@layer layout {
+  .app-header {
+    align-items: center;
+    display: flex;
+    gap: calc(var(--space) * 3);
+    left: 0;
+    padding: calc(var(--space) * 3);
+    position: fixed;
+    right: 0;
+    top: 0;
+    z-index: 10;
+  }
 
-#wrap {
-  display: flex;
-  gap: var(--sp-wrap-gap);
-  align-items: flex-start;
-  padding: var(--sp-wrap-pad);
-}
+  .app-header h1 {
+    font-family: var(--font-sans);
+    font-size: var(--fs-base);
+    font-weight: 500;
+  }
 
-header {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  z-index: 10;
-  display: flex;
-  align-items: center;
-  gap: var(--sp-wrap-gap);
-  padding: var(--sp-header-pad-y) var(--sp-header-pad-x);
-}
-header h1 {
-  font-family: var(--serif);
-  font-size: var(--fs);
-  font-weight: 700;
-  letter-spacing: -0.01em;
-}
-header .sub {
-  font-family: var(--serif);
-  color: var(--ink-45);
-  font-size: var(--fs);
-  font-style: italic;
-}
-#status {
-  position: fixed;
-  bottom: 0;
-  left: 0;
-  z-index: 10;
-  padding: var(--sp-header-pad-y) var(--sp-header-pad-x);
-  font-family: var(--mono);
-  color: var(--ink-70);
-  font-size: var(--fs);
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-}
+  .app-header__sub {
+    color: var(--color-ink-45);
+    font-family: var(--font-sans);
+    font-size: var(--fs-base);
+  }
 
-#stage {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: var(--sp-stage-pad);
-  min-height: calc(100vh - 120px);
-}
-#cv {
-  display: block;
-  border-radius: var(--radius);
-  touch-action: none;
-  max-width: 100%;
-}
-#drop {
-  padding: var(--sp-drop-pad-y) var(--sp-drop-pad-x);
-  text-align: center;
-  color: var(--ink-45);
-  cursor: pointer;
-  transition: background 0.15s, border-color 0.15s, color 0.15s;
-  font-family: var(--serif);
-  font-size: var(--fs);
-  line-height: 1.9;
-  border-style: dashed;
-  border-color: var(--ink-16);
-}
-#drop.on {
-  background: var(--ink-06);
-  border-color: var(--ink-45);
-  color: var(--ink-70);
-}
-#drop b {
-  color: var(--ink);
-  font-weight: 700;
-}
+  .app-status {
+    bottom: 0;
+    color: var(--color-ink);
+    font-family: var(--font-mono);
+    font-size: var(--fs-base);
+    left: 0;
+    padding: calc(var(--space) * 4) calc(var(--space) * 3);
+    position: fixed;
+    text-transform: uppercase;
+    z-index: 10;
+  }
 
-#rail {
-  width: var(--sp-rail-width);
-  flex-shrink: 0;
-  display: flex;
-  flex-direction: column;
-  gap: var(--sp-rail-gap);
-  max-height: calc(100vh - 32px);
-  overflow-y: auto;
-}
-.grp {
-  padding: var(--sp-grp-pad);
-}
-.grp label {
-  display: block;
-  font-family: var(--mono);
-  font-size: var(--fs);
-  font-weight: 600;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  color: var(--ink-45);
-  margin-bottom: 10px;
-}
-.row {
-  display: flex;
-  gap: 6px;
-  flex-wrap: wrap;
-}
-button {
-  font-family: var(--mono);
-  font-size: var(--fs);
-  font-weight: 500;
-  letter-spacing: 0.01em;
-  color: var(--ink-70);
-  background: var(--paper);
-  border: 1px solid var(--ink-10);
-  border-radius: var(--radius-sm);
-  padding: 8px 14px;
-  cursor: pointer;
-  transition: background 0.12s, color 0.12s, border-color 0.12s;
-}
-button:hover {
-  background: var(--ink-06);
-  border-color: var(--ink-16);
-  color: var(--ink);
-}
-button.act {
-  background: var(--ink);
-  border-color: var(--ink);
-  color: var(--paper);
-}
-.sld {
-  display: grid;
-  grid-template-columns: 1fr auto;
-  grid-template-areas: "name value" "slider slider";
-  align-items: center;
-  column-gap: 8px;
-  row-gap: 4px;
-  margin-top: 10px;
-}
-.sld span.nm {
-  grid-area: name;
-  font-family: var(--mono);
-  color: var(--ink-70);
-  font-size: var(--fs);
-}
-.sld input {
-  grid-area: slider;
-  width: 100%;
-  accent-color: var(--ink);
-}
-.sld span.vl {
-  grid-area: value;
-  text-align: right;
-  font-family: var(--mono);
-  font-size: var(--fs);
-  color: var(--ink-45);
-}
-#bar {
-  height: 8px;
-  border-radius: var(--radius-sm);
-  overflow: hidden;
-  padding: 0;
-  display: none;
-}
-#bar div {
-  height: 100%;
-  width: 0%;
-  background: var(--ink);
-  border-radius: var(--radius-sm);
-  transition: width 0.2s;
-}
-#err {
-  display: none;
-  font-family: var(--serif);
-  color: var(--ink);
-  font-size: var(--fs);
-  padding: 12px 14px;
-  line-height: 1.6;
-  background: var(--paper);
-  border-color: var(--ink);
-}
-#hint {
-  font-family: var(--serif);
-  color: var(--ink-45);
-  font-size: var(--fs);
-  font-style: italic;
-  line-height: 1.8;
-  padding: var(--sp-grp-pad);
-}
+  .app-layout {
+    align-items: flex-start;
+    display: flex;
+    gap: calc(var(--space) * 3);
+    padding: calc(var(--space) * 3);
+  }
 
-@media (max-width: 760px) {
-  #wrap {
+  .app-layout__stage {
+    align-items: center;
+    display: flex;
+    flex: 1;
+    justify-content: center;
+    min-height: calc(100vh - var(--space) * 4);
+    min-width: 0;
+    padding: calc(var(--space) * 2);
+  }
+
+  .control-rail {
+    display: flex;
     flex-direction: column;
+    flex-shrink: 0;
+    gap: calc(var(--space) * 2);
+    max-height: calc(100vh - var(--space) * 4);
+    overflow-y: auto;
+    overflow-x: hidden;
+    width: var(--size-rail-width);
   }
-  #stage {
-    min-height: 0;
+
+  @media (max-width: 760px) {
+    .app-layout {
+      flex-direction: column;
+    }
+
+    .app-layout__stage {
+      min-height: 0;
+    }
+
+    .control-rail {
+      max-height: none;
+      width: 100%;
+    }
   }
-  #rail {
+}
+
+@layer components {
+  .card {
+    background: var(--color-ink-05);
+    border: 1px solid var(--color-ink-05);
+    border-radius: var(--radius-sm);
+  }
+
+  .photo-canvas {
+    border-radius: var(--radius-sm);
+    display: block;
+    max-width: 100%;
+    touch-action: none;
+  }
+
+  .dropzone {
+    border-color: var(--color-ink-15);
+    border-style: dashed;
+    color: var(--color-ink-45);
+    cursor: pointer;
+    font-family: var(--font-sans);
+    font-size: var(--fs-base);
+    line-height: 1.5;
+    padding: calc(var(--space) * 12) calc(var(--space) * 8);
+    text-align: center;
+    transition: background 0.15s, border-color 0.15s, color 0.15s;
+  }
+
+  .dropzone b {
+    color: var(--color-ink);
+    font-weight: 500;
+  }
+
+  .control-group {
+    padding: calc(var(--space) * 2);
+  }
+
+  .control-group__label {
+    color: var(--color-ink-45);
+    display: block;
+    font-family: var(--font-mono);
+    font-size: var(--fs-base);
+    margin-bottom: calc(var(--space) * 1);
+    text-transform: uppercase;
+  }
+
+  .button-group {
+    display: flex;
+    flex-wrap: wrap;
+    gap: calc(var(--space) * 1);
+  }
+
+  .button {
+    background: var(--color-paper);
+  }
+
+  .slider-control {
+    align-items: center;
+    column-gap: calc(var(--space) * 1);
+    display: grid;
+    grid-template-areas: "name value" "slider slider";
+    grid-template-columns: 1fr auto;
+    margin-top: calc(var(--space) * 1);
+    row-gap: calc(var(--space) * 0.5);
+  }
+
+  .slider-control__name {
+    color: var(--color-ink);
+    font-family: var(--font-mono);
+    font-size: var(--fs-base);
+    grid-area: name;
+  }
+
+  .slider-control__input {
+    grid-area: slider;
     width: 100%;
-    max-height: none;
+  }
+
+  .slider-control__value {
+    color: var(--color-ink);
+    font-family: var(--font-mono);
+    font-size: var(--fs-base);
+    grid-area: value;
+    text-align: right;
+  }
+
+  .progress-bar {
+    display: none;
+    height: calc(var(--space) * 1);
+    overflow: hidden;
+    padding: 0;
+  }
+
+  .progress-bar__fill {
+    background: var(--color-accent);
+    border-radius: var(--radius-sm);
+    height: 100%;
+    transition: width 0.2s;
+    width: 0%;
+  }
+
+  .error-message {
+    background: var(--color-paper);
+    border-color: var(--color-ink);
+    color: var(--color-ink);
+    display: none;
+    font-family: var(--font-sans);
+    font-size: var(--fs-base);
+    line-height: 1.5;
+    padding: calc(var(--space) * 1.5) calc(var(--space) * 2);
+  }
+
+  .hint-panel {
+    color: var(--color-ink-70);
+    font-family: var(--font-sans);
+    font-size: var(--fs-base);
+    line-height: 1.5;
+    padding: calc(var(--space) * 2);
+  }
+}
+
+@layer states {
+  .dropzone.is-dragging {
+    background: var(--color-ink-05);
+    border-color: var(--color-ink-45);
+    color: var(--color-ink-70);
+  }
+
+  .button.is-active {
+    background: var(--color-accent);
+    border-color: var(--color-accent);
+    color: var(--color-paper);
   }
 }

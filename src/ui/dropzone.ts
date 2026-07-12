@@ -3,13 +3,13 @@ export function bindDropzone(dropEl: HTMLElement, fileInput: HTMLInputElement, o
   ["dragover", "dragenter"].forEach((ev) =>
     dropEl.addEventListener(ev, (e) => {
       e.preventDefault();
-      dropEl.classList.add("on");
+      dropEl.classList.add("is-dragging");
     }),
   );
   ["dragleave", "drop"].forEach((ev) =>
     dropEl.addEventListener(ev, (e) => {
       e.preventDefault();
-      dropEl.classList.remove("on");
+      dropEl.classList.remove("is-dragging");
     }),
   );
   dropEl.addEventListener("drop", (e) => {

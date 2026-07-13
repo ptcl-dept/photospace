@@ -1,4 +1,4 @@
-# Photo Space
+# Photospace
 
 Turn a single photo into a set of assets for parallax rendering using monocular depth estimation (`photo.avif` / `depth.png` / `mask.png` / `normal.png` / `meta.json`). The project ships both a browser demo viewer that runs entirely in the browser and a CLI for batch-processing many photos.
 

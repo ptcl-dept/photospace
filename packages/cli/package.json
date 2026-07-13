@@ -1,7 +1,7 @@
 {
   "name": "photospace-cli",
   "version": "0.1.0",
-  "description": "Photo Space CLI — 写真から photo.avif/depth.png/mask.png/normal.png/meta.json のパッケージを一括生成する",
+  "description": "Photospace CLI — 写真から photo.avif/depth.png/mask.png/normal.png/meta.json のパッケージを一括生成する",
   "type": "module",
   "license": "MIT",
   "repository": {

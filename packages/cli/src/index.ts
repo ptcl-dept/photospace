@@ -3,7 +3,7 @@ import { Command } from "commander";
 import { runBake } from "./bake.ts";
 
 const program = new Command();
-program.name("photospace").description("Photo Space CLI — 深度推定パッケージの一括ベイク");
+program.name("photospace").description("Photospace CLI — 深度推定パッケージの一括ベイク");
 
 program
   .command("bake")

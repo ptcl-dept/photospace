@@ -1,6 +1,6 @@
 # photospace-runtime
 
-A lightweight loader that reads the five-file package set (`photo.avif` / `depth.png` / `mask.png` / `normal.png` / `meta.json`) baked by [`photospace-cli`](https://github.com/ptcl-dept/photo-space/tree/main/packages/cli) in the browser, and returns decoded rasters plus helpers for recovering world-space positions. It is renderer-agnostic, so it works with three.js, raw WebGL, or Canvas2D.
+A lightweight loader that reads the five-file package set (`photo.avif` / `depth.png` / `mask.png` / `normal.png` / `meta.json`) baked by [`photospace-cli`](https://github.com/ptcl-dept/photospace/tree/main/packages/cli) in the browser, and returns decoded rasters plus helpers for recovering world-space positions. It is renderer-agnostic, so it works with three.js, raw WebGL, or Canvas2D.
 
 ## Install
 
@@ -26,11 +26,11 @@ const [x, y, z] = worldPositionFromMeta(pkg.meta, u, v, disparity);
 
 To wire it directly into your own shader, use `GLSL_SNIPPETS.unpackAndSampleDepth` / `GLSL_SNIPPETS.worldPosition`. Because the RG16 packing cannot use the GPU's bilinear interpolation, `unpackAndSampleDepth` reads with NEAREST sampling plus manual bilinear filtering.
 
-See [`examples/three-scene`](https://github.com/ptcl-dept/photo-space/tree/main/examples/three-scene) for a three.js implementation.
+See [`examples/three-scene`](https://github.com/ptcl-dept/photospace/tree/main/examples/three-scene) for a three.js implementation.
 
 ## Package format
 
-[`docs/package-format.md`](https://github.com/ptcl-dept/photo-space/blob/main/docs/package-format.md) documents the fields in detail along with the compatibility policy. The `version` field in `meta.json` guards against future format changes.
+[`docs/package-format.md`](https://github.com/ptcl-dept/photospace/blob/main/docs/package-format.md) documents the fields in detail along with the compatibility policy. The `version` field in `meta.json` guards against future format changes.
 
 ## Building from source
 

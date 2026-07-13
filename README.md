@@ -2,6 +2,8 @@
 
 Turn a single photo into a set of assets for parallax rendering using monocular depth estimation (`photo.avif` / `depth.png` / `mask.png` / `normal.png` / `meta.json`). The project ships both a browser demo viewer that runs entirely in the browser and a CLI for batch-processing many photos.
 
+**Live demo: [photospace-app.vercel.app](https://photospace-app.vercel.app)**
+
 - **Browser demo** (the root app in this repo): drop in a photo and it estimates depth in-browser (WebGPU/WASM), then previews a cursor-following parallax effect on the spot. Everything runs locally — nothing is uploaded to a server. The **Package (.zip)** button bakes the same five-file set as the CLI (`photo.avif`/`depth.png`/`mask.png`/`normal.png`/`meta.json`) entirely in the browser and downloads it as a zip, so a single photo can be processed without the CLI (on browsers without AVIF encoding support, the photo is written as WebP/PNG and recorded in `meta.json`).
 - **[`photospace-cli`](packages/cli)**: runs the same inference and packing logic in Node to bake a whole folder of images at once. Distributed on npm as `photospace-cli`.
 - **[`photospace-runtime`](packages/runtime)**: a lightweight loader that reads the five-file package baked by the CLI in the browser and recovers world-space positions. Renderer-agnostic — usable from three.js or any other renderer. Distributed on npm as `photospace-runtime`.

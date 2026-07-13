@@ -6,7 +6,7 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/ptcl-dept/photo-space.git",
+    "url": "https://github.com/ptcl-dept/photospace.git",
     "directory": "packages/runtime"
   },
   "keywords": ["photo-space", "depth", "webgl", "three.js"],

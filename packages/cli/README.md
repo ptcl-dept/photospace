@@ -1,6 +1,6 @@
 # photospace-cli
 
-A CLI that batch-generates the five-file package set — `photo.avif` / `depth.png` / `mask.png` / `normal.png` / `meta.json` — from photos. It runs monocular depth estimation ([Depth Anything V2](https://huggingface.co/onnx-community/depth-anything-v2-small)) on Node (CPU) and writes output in a format readable by [`photospace-runtime`](https://github.com/ptcl-dept/photo-space/tree/main/packages/runtime).
+A CLI that batch-generates the five-file package set — `photo.avif` / `depth.png` / `mask.png` / `normal.png` / `meta.json` — from photos. It runs monocular depth estimation ([Depth Anything V2](https://huggingface.co/onnx-community/depth-anything-v2-small)) on Node (CPU) and writes output in a format readable by [`photospace-runtime`](https://github.com/ptcl-dept/photospace/tree/main/packages/runtime).
 
 ## Install
 
@@ -48,7 +48,7 @@ The browser demo's "config.json" export button generates this file from the slid
 
 ## Output format
 
-See [`docs/package-format.md`](https://github.com/ptcl-dept/photo-space/blob/main/docs/package-format.md) for the full spec of the package written by the CLI.
+See [`docs/package-format.md`](https://github.com/ptcl-dept/photospace/blob/main/docs/package-format.md) for the full spec of the package written by the CLI.
 
 ## Building from source
 

@@ -96,6 +96,25 @@
     font-size: var(--fs-base);
   }
 
+  .app-header__source {
+    color: var(--color-ink-45);
+    font-family: var(--font-mono);
+    font-size: var(--fs-base);
+    text-decoration: none;
+    white-space: nowrap;
+    pointer-events: auto;
+    transition: color 0.12s;
+  }
+
+  .app-header__source:hover {
+    color: var(--color-accent);
+  }
+
+  .app-header__source:focus-visible {
+    outline: 2px solid var(--color-accent);
+    outline-offset: 2px;
+  }
+
   .app-status {
     bottom: 0;
     color: var(--color-ink);

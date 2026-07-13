@@ -1,0 +1,8 @@
+{
+  // Build-time type-check for the deployed app (src only).
+  // examples/three-scene is an acceptance-test scene that consumes the published
+  // photospace-runtime dist, which isn't built during the app/Vercel build — it is
+  // covered by `pnpm typecheck` instead, not by the deploy build.
+  "extends": "./tsconfig.json",
+  "include": ["src"]
+}

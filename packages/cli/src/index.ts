@@ -7,7 +7,7 @@ program.name("photospace").description("Photospace CLI — 深度推定パッケ
 
 program
   .command("bake")
-  .description("写真から photo.avif/depth.png/mask.png/normal.png/meta.json のパッケージを一括生成する")
+  .description("写真候補とdepth/mask/normalを含むパッケージを一括生成する")
   .argument("<patterns...>", "入力画像のパス・globパターン・ディレクトリ")
   .option("--config <path>", "photospace.config.json のパス")
   .option("--out <dir>", "出力先ディレクトリ", "out")

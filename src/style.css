@@ -68,6 +68,27 @@
   input[type="range"] {
     accent-color: var(--color-accent);
   }
+
+  input[type="number"] {
+    border: 1px solid var(--color-ink-15);
+    border-radius: var(--radius-sm);
+    background: var(--color-paper);
+    color: var(--color-ink);
+    font-family: var(--font-mono);
+    font-size: max(1rem, var(--fs-base));
+    min-width: 0;
+    padding: calc(var(--space) * 1);
+  }
+
+  input:focus-visible,
+  button:focus-visible {
+    box-shadow: 0 0 0 2px var(--color-accent);
+    outline: none;
+  }
+
+  input:invalid {
+    border-color: var(--color-accent);
+  }
 }
 
 @layer layout {
@@ -274,6 +295,50 @@
     font-size: var(--fs-base);
     grid-area: value;
     text-align: right;
+  }
+
+  .export-field {
+    align-items: center;
+    display: grid;
+    font-family: var(--font-mono);
+    gap: calc(var(--space) * 1);
+    grid-template-columns: minmax(0, 1fr) minmax(4rem, 0.55fr) auto;
+    margin-top: calc(var(--space) * 1);
+  }
+
+  .export-field span {
+    color: var(--color-ink-45);
+  }
+
+  .field-help {
+    color: var(--color-ink-45);
+    display: block;
+    font-family: var(--font-sans);
+    line-height: 1.4;
+    margin-top: calc(var(--space) * 1);
+  }
+
+  .format-fieldset {
+    border: 0;
+    display: flex;
+    flex-wrap: wrap;
+    gap: calc(var(--space) * 2);
+    margin: calc(var(--space) * 2) 0;
+  }
+
+  .format-fieldset legend {
+    color: var(--color-ink-45);
+    font-family: var(--font-mono);
+    margin-bottom: calc(var(--space) * 1);
+    width: 100%;
+  }
+
+  .format-fieldset label {
+    align-items: center;
+    cursor: pointer;
+    display: inline-flex;
+    gap: calc(var(--space) * 1);
+    user-select: none;
   }
 
   .progress-bar {

@@ -5,8 +5,13 @@
 export interface PhotoSpaceMeta {
   version: 1;
   source: { file: string; width: number; height: number };
-  /** パッケージ内の写真ファイル名。省略時は "photo.avif"(ブラウザexportはAVIF非対応環境でWebP/PNGへフォールバックする) */
-  photo?: { file: string };
+  /** fileは旧runtime向け第一候補。新runtimeはsourcesを記載順にデコードする。 */
+  photo?: {
+    file: string;
+    width?: number;
+    height?: number;
+    sources?: Array<{ file: string; type: string }>;
+  };
   depth: {
     width: number;
     height: number;
@@ -54,7 +59,7 @@ function worldPosition(
 
 export interface PhotoSpacePackage {
   meta: PhotoSpaceMeta;
-  /** 写真(photo.avif、またはmeta.photo.fileが指すWebP/PNG)をデコードしたビットマップ(テクスチャソースとしてそのまま使える) */
+  /** meta.photo.sourcesのうち最初にデコードできた写真(テクスチャソースとしてそのまま使える) */
   photo: ImageBitmap;
   /** 復元済みの視差値(0..1)。 depthWidth x depthHeight */
   depth: Float32Array;
@@ -68,7 +73,9 @@ export interface PhotoSpacePackage {
 }
 
 async function fetchImageRaster(url: string): Promise<{ data: Uint8ClampedArray; width: number; height: number }> {
-  const blob = await (await fetch(url)).blob();
+  const response = await fetch(url);
+  if (!response.ok) throw new Error(`画像を取得できませんでした: ${url} (${response.status})`);
+  const blob = await response.blob();
   const bitmap = await createImageBitmap(blob);
   const canvas = new OffscreenCanvas(bitmap.width, bitmap.height);
   const ctx = canvas.getContext("2d")!;
@@ -77,19 +84,40 @@ async function fetchImageRaster(url: string): Promise<{ data: Uint8ClampedArray;
   return { data: im.data, width: bitmap.width, height: bitmap.height };
 }
 
+export function photoFileCandidates(meta: PhotoSpaceMeta): string[] {
+  const files = meta.photo?.sources?.map((source) => source.file) ?? [];
+  files.push(meta.photo?.file ?? "photo.avif");
+  return [...new Set(files)];
+}
+
+async function fetchPhotoBitmap(base: string, meta: PhotoSpaceMeta): Promise<ImageBitmap> {
+  const failures: string[] = [];
+  for (const file of photoFileCandidates(meta)) {
+    try {
+      const response = await fetch(new URL(file, base));
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      return await createImageBitmap(await response.blob());
+    } catch (error) {
+      failures.push(`${file}: ${(error as Error).message}`);
+    }
+  }
+  throw new Error(`写真をデコードできませんでした (${failures.join(", ")})`);
+}
+
 /** baseUrl配下の写真/depth.png/mask.png/normal.png/meta.json を読み込む */
 export async function loadPackage(baseUrl: string | URL): Promise<PhotoSpacePackage> {
   const normalized = typeof baseUrl === "string" && !baseUrl.endsWith("/") ? baseUrl + "/" : baseUrl;
   const base = new URL(normalized, location.href).toString();
 
-  const meta: PhotoSpaceMeta = await (await fetch(new URL("meta.json", base))).json();
-  const photoFile = meta.photo?.file ?? "photo.avif";
+  const metaResponse = await fetch(new URL("meta.json", base));
+  if (!metaResponse.ok) throw new Error(`meta.jsonを取得できませんでした (${metaResponse.status})`);
+  const meta: PhotoSpaceMeta = await metaResponse.json();
 
-  const [depthRaster, maskRaster, normalRaster, photoBlob] = await Promise.all([
+  const [depthRaster, maskRaster, normalRaster, photo] = await Promise.all([
     fetchImageRaster(new URL("depth.png", base).toString()),
     fetchImageRaster(new URL("mask.png", base).toString()),
     fetchImageRaster(new URL("normal.png", base).toString()),
-    (await fetch(new URL(photoFile, base))).blob(),
+    fetchPhotoBitmap(base, meta),
   ]);
 
   const depth = unpackDepthRG16(depthRaster.data);
@@ -110,8 +138,6 @@ export async function loadPackage(baseUrl: string | URL): Promise<PhotoSpacePack
     ny[i] = (normalRaster.data[i * 4 + 1] / 255) * 2 - 1;
     nz[i] = (normalRaster.data[i * 4 + 2] / 255) * 2 - 1;
   }
-
-  const photo = await createImageBitmap(photoBlob);
 
   return {
     meta,

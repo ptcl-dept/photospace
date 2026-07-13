@@ -18,6 +18,7 @@ export {
 } from "./upsample.ts";
 export { computeSkyMask, computeEdgeMask } from "./masks.ts";
 export { computeNormals, worldPosition, type NormalRaster } from "./normals.ts";
+export { nextMapMaxSize } from "./sizing.ts";
 export {
   packDepthRG16,
   unpackDepthRG16,
@@ -27,6 +28,8 @@ export {
   DEFAULT_CONFIG,
   type PhotoSpaceConfig,
   type PhotoSpaceMeta,
+  type PhotoFormat,
+  type PhotoMimeType,
 } from "./pack.ts";
 export {
   bakePhoto,

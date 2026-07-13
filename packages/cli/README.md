@@ -1,6 +1,6 @@
 # photospace-cli
 
-A CLI that batch-generates the five-file package set — `photo.avif` / `depth.png` / `mask.png` / `normal.png` / `meta.json` — from photos. It runs monocular depth estimation ([Depth Anything V2](https://huggingface.co/onnx-community/depth-anything-v2-small)) on Node (CPU) and writes output in a format readable by [`photospace-runtime`](https://github.com/ptcl-dept/photospace/tree/main/packages/runtime).
+A CLI that generates AVIF/WebP/JPEG photo variants plus `depth.png` / `mask.png` / `normal.png` / `meta.json` from photos. It runs monocular depth estimation ([Depth Anything V2](https://huggingface.co/onnx-community/depth-anything-v2-small)) on Node (CPU) and writes output in a format readable by [`photospace-runtime`](https://github.com/ptcl-dept/photospace/tree/main/packages/runtime).
 
 ## Install
 
@@ -19,7 +19,7 @@ photospace bake ./photos --out ./out
 ```
 
 - `<patterns...>`: one or more image file paths, glob patterns, or directories (passing a directory targets the `jpg/jpeg/png/webp/avif/tiff` files directly inside it)
-- `--out <dir>`: output directory (default `out`). The five-file set is written to `out/<name>/` per file
+- `--out <dir>`: output directory (default `out`). One package directory is written to `out/<name>/` per file
 - `--config <path>`: path to `photospace.config.json` (defaults are used when omitted)
 
 The SHA-256 hash of the photo bytes + config is recorded in `meta.json` as `sourceHash`, so re-running on identical input skips the bake.
@@ -32,7 +32,14 @@ The SHA-256 hash of the photo bytes + config is recorded in `meta.json` as `sour
   "camera": { "fovDeg": 55, "farRange": 12 },
   "sky": { "threshold": 0.03 },
   "depth": { "maxSize": 1024 },
-  "photo": { "avifQuality": 50 }
+  "maps": { "maxBytes": 1500000, "pngCompressionLevel": 9 },
+  "photo": {
+    "maxSize": 2048,
+    "formats": ["avif", "webp"],
+    "avifQuality": 50,
+    "webpQuality": 75,
+    "jpegQuality": 82
+  }
 }
 ```
 
@@ -42,9 +49,13 @@ The SHA-256 hash of the photo bytes + config is recorded in `meta.json` as `sour
 | `camera.farRange` | Depth range for the disparity → depth conversion |
 | `sky.threshold` | Disparity below this value is treated as sky and baked into the R channel of `mask.png` |
 | `depth.maxSize` | Long-edge pixel size of the output depth/mask/normal (snapped to the source photo resolution with a guided filter) |
-| `photo.avifQuality` | Encoding quality of `photo.avif` (0–100) |
+| `maps.maxBytes` | Maximum combined bytes for depth/mask/normal; `0` disables the limit. All three are rebaked at a smaller shared resolution when exceeded |
+| `maps.pngCompressionLevel` | PNG compression level for depth/mask/normal (0–9) |
+| `photo.maxSize` | Long-edge pixel size of each encoded photo variant |
+| `photo.formats` | Ordered photo variants to emit: `avif`, `webp`, and/or `jpeg` |
+| `photo.*Quality` | Per-format encoding quality (0–100) |
 
-The browser demo's "config.json" export button generates this file from the slider values in the UI.
+Fields may be omitted; defaults are merged per section.
 
 ## Output format
 

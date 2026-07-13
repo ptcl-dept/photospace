@@ -1,4 +1,14 @@
-import { bakeFromDisparity, type SourcePhoto, type PhotoSpaceConfig, type RasterF32 } from "photospace-core";
+import {
+  bakeFromDisparity,
+  computeSourceHash,
+  nextMapMaxSize,
+  type BakedPackage,
+  type SourcePhoto,
+  type PhotoFormat,
+  type PhotoMimeType,
+  type PhotoSpaceConfig,
+  type RasterF32,
+} from "photospace-core";
 import { createZip } from "./zip.ts";
 
 export function rasterizeToCanvas(source: CanvasImageSource, width: number, height: number): HTMLCanvasElement {
@@ -24,28 +34,56 @@ async function encodePng(rgba: Uint8ClampedArray<ArrayBuffer>, width: number, he
   return new Uint8Array(await blob.arrayBuffer());
 }
 
-/**
- * 写真の再エンコード候補。canvas.toBlob() は Chrome/Edge を含む多くのブラウザで AVIF エンコード未対応
- * (非対応の場合は黙ってPNG型のBlobを返す)なので、AVIF → WebP → PNG の順に試し、
- * 実際に使ったファイル名を meta.json の photo.file に記録する。
- */
-const PHOTO_ENCODE_CANDIDATES = [
-  { name: "photo.avif", type: "image/avif" },
-  { name: "photo.webp", type: "image/webp" },
-  { name: "photo.png", type: "image/png" },
-] as const;
+/** canvasが実際に生成できた指定形式をすべて同梱し、JPEGを最終フォールバックにする。 */
+const PHOTO_ENCODE_CANDIDATES: Record<PhotoFormat, { name: string; type: PhotoMimeType }> = {
+  avif: { name: "photo.avif", type: "image/avif" },
+  webp: { name: "photo.webp", type: "image/webp" },
+  jpeg: { name: "photo.jpg", type: "image/jpeg" },
+};
 
-async function encodePhoto(
+interface EncodedPhoto {
+  name: string;
+  type: PhotoMimeType;
+  bytes: Uint8Array;
+  width: number;
+  height: number;
+}
+
+function photoQuality(config: PhotoSpaceConfig["photo"], format: PhotoFormat): number {
+  if (format === "avif") return config.avifQuality / 100;
+  if (format === "webp") return config.webpQuality / 100;
+  return config.jpegQuality / 100;
+}
+
+async function encodePhotoSources(
   canvas: HTMLCanvasElement,
-  quality01: number,
-): Promise<{ name: string; bytes: Uint8Array }> {
-  for (const candidate of PHOTO_ENCODE_CANDIDATES) {
-    const blob = await canvasToBlob(canvas, candidate.type, quality01);
+  config: PhotoSpaceConfig["photo"],
+): Promise<EncodedPhoto[]> {
+  const encoded: EncodedPhoto[] = [];
+  for (const format of new Set(config.formats)) {
+    const candidate = PHOTO_ENCODE_CANDIDATES[format];
+    const blob = await canvasToBlob(canvas, candidate.type, photoQuality(config, format));
     if (blob && blob.type === candidate.type) {
-      return { name: candidate.name, bytes: new Uint8Array(await blob.arrayBuffer()) };
+      encoded.push({
+        ...candidate,
+        bytes: new Uint8Array(await blob.arrayBuffer()),
+        width: canvas.width,
+        height: canvas.height,
+      });
     }
   }
-  throw new Error("写真のエンコード(AVIF/WebP/PNG)にすべて失敗しました。");
+  if (encoded.length > 0) return encoded;
+
+  // JPEGはcanvas実装の必須形式。指定形式を1つも生成できない環境の最終フォールバックにする。
+  const fallback = PHOTO_ENCODE_CANDIDATES.jpeg;
+  const blob = await canvasToBlob(canvas, fallback.type, config.jpegQuality / 100);
+  if (!blob || blob.type !== fallback.type) throw new Error("写真のエンコードに失敗しました。");
+  return [{ ...fallback, bytes: new Uint8Array(await blob.arrayBuffer()), width: canvas.width, height: canvas.height }];
+}
+
+function fitLongEdge(width: number, height: number, maxSize: number): [number, number] {
+  const scale = Math.min(1, maxSize / Math.max(width, height));
+  return [Math.max(1, Math.round(width * scale)), Math.max(1, Math.round(height * scale))];
 }
 
 export interface ExportPackageInput {
@@ -59,30 +97,67 @@ export interface ExportPackageInput {
   config: PhotoSpaceConfig;
 }
 
+export interface PackageExportSummary {
+  zipBytes: number;
+  mapBytes: number;
+  mapWidth: number;
+  mapHeight: number;
+  photoWidth: number;
+  photoHeight: number;
+  photoFormats: PhotoFormat[];
+}
+
 /**
- * docs/package-format.md 記載の5点セット(photo.avif/depth.png/mask.png/normal.png/meta.json)を
- * ブラウザだけで組み立て、1つの .zip としてダウンロードする。CLIの `photospace bake` が
- * Node上(sharp)で行うのと同じ photospace-core のロジックをそのまま使う。
- * AVIFエンコード非対応ブラウザでは写真を WebP/PNG で書き出し、meta.json の photo.file に記録する。
+ * 写真候補とdepth/mask/normal/meta.jsonをブラウザだけで組み立て、zipとしてダウンロードする。
+ * 容量上限を超えたマップは同じ長辺へまとめて縮小し、位置対応を維持する。
  */
-export async function downloadPackage(input: ExportPackageInput): Promise<void> {
-  const baked = await bakeFromDisparity(input.photo, input.lowResDisparity, input.normalization, {
-    config: input.config,
-  });
+export async function downloadPackage(input: ExportPackageInput): Promise<PackageExportSummary> {
+  const requestedHash = await computeSourceHash(input.photo.bytes, input.config);
+  let mapMaxSize = input.config.depth.maxSize;
+  let baked: BakedPackage;
+  let depthBytes: Uint8Array;
+  let maskBytes: Uint8Array;
+  let normalBytes: Uint8Array;
+  while (true) {
+    const effectiveConfig: PhotoSpaceConfig = {
+      ...input.config,
+      depth: { ...input.config.depth, maxSize: mapMaxSize },
+    };
+    baked = await bakeFromDisparity(input.photo, input.lowResDisparity, input.normalization, {
+      config: effectiveConfig,
+    });
+    [depthBytes, maskBytes, normalBytes] = await Promise.all([
+      encodePng(baked.depthRgba, baked.depthWidth, baked.depthHeight),
+      encodePng(baked.maskRgba, baked.depthWidth, baked.depthHeight),
+      encodePng(baked.normalRgba, baked.depthWidth, baked.depthHeight),
+    ]);
+    const totalBytes = depthBytes.byteLength + maskBytes.byteLength + normalBytes.byteLength;
+    if (input.config.maps.maxBytes <= 0 || totalBytes <= input.config.maps.maxBytes) break;
+    const actualMaxSize = Math.max(baked.depthWidth, baked.depthHeight);
+    if (actualMaxSize <= 64) {
+      throw new Error(`Map size limit (${input.config.maps.maxBytes} bytes) cannot be met at minimum resolution.`);
+    }
+    mapMaxSize = nextMapMaxSize(actualMaxSize, totalBytes, input.config.maps.maxBytes);
+  }
 
-  const photoCanvas = rasterizeToCanvas(input.photoSource, input.photo.width, input.photo.height);
-  const [photo, depthBytes, maskBytes, normalBytes] = await Promise.all([
-    encodePhoto(photoCanvas, input.config.photo.avifQuality / 100),
-    encodePng(baked.depthRgba, baked.depthWidth, baked.depthHeight),
-    encodePng(baked.maskRgba, baked.depthWidth, baked.depthHeight),
-    encodePng(baked.normalRgba, baked.depthWidth, baked.depthHeight),
-  ]);
-
-  const meta = { ...baked.meta, photo: { file: photo.name } };
+  const [photoW, photoH] = fitLongEdge(input.photo.width, input.photo.height, input.config.photo.maxSize);
+  const photoCanvas = rasterizeToCanvas(input.photoSource, photoW, photoH);
+  const photos = await encodePhotoSources(photoCanvas, input.config.photo);
+  const firstPhoto = photos[0];
+  const meta = {
+    ...baked.meta,
+    sourceHash: requestedHash,
+    photo: {
+      file: firstPhoto.name,
+      width: firstPhoto.width,
+      height: firstPhoto.height,
+      sources: photos.map(({ name: file, type }) => ({ file, type })),
+    },
+  };
   const metaBytes = new TextEncoder().encode(JSON.stringify(meta, null, 2));
 
   const zip = createZip([
-    { name: photo.name, data: photo.bytes },
+    ...photos.map((photo) => ({ name: photo.name, data: photo.bytes })),
     { name: "depth.png", data: depthBytes },
     { name: "mask.png", data: maskBytes },
     { name: "normal.png", data: normalBytes },
@@ -94,5 +169,19 @@ export async function downloadPackage(input: ExportPackageInput): Promise<void> 
   a.download = `${baseName}.photospace.zip`;
   a.href = URL.createObjectURL(zip);
   a.click();
-  URL.revokeObjectURL(a.href);
+  setTimeout(() => URL.revokeObjectURL(a.href), 0);
+
+  return {
+    zipBytes: zip.size,
+    mapBytes: depthBytes.byteLength + maskBytes.byteLength + normalBytes.byteLength,
+    mapWidth: baked.depthWidth,
+    mapHeight: baked.depthHeight,
+    photoWidth: firstPhoto.width,
+    photoHeight: firstPhoto.height,
+    photoFormats: photos.map((photo) => {
+      if (photo.type === "image/avif") return "avif";
+      if (photo.type === "image/webp") return "webp";
+      return "jpeg";
+    }),
+  };
 }

@@ -1,6 +1,6 @@
 # photospace-runtime
 
-A lightweight loader that reads the five-file package set (`photo.avif` / `depth.png` / `mask.png` / `normal.png` / `meta.json`) baked by [`photospace-cli`](https://github.com/ptcl-dept/photospace/tree/main/packages/cli) in the browser, and returns decoded rasters plus helpers for recovering world-space positions. It is renderer-agnostic, so it works with three.js, raw WebGL, or Canvas2D.
+A lightweight loader that reads a Photospace package (ordered AVIF/WebP/JPEG photo candidates plus `depth.png` / `mask.png` / `normal.png` / `meta.json`) baked by [`photospace-cli`](https://github.com/ptcl-dept/photospace/tree/main/packages/cli), and returns decoded rasters plus helpers for recovering world-space positions. It is renderer-agnostic, so it works with three.js, raw WebGL, or Canvas2D.
 
 ## Install
 
@@ -22,7 +22,7 @@ const pkg = await loadPackage("/sample/source/");
 const [x, y, z] = worldPositionFromMeta(pkg.meta, u, v, disparity);
 ```
 
-`loadPackage(baseUrl)` fetches the five files under `baseUrl` in parallel and decodes the 16-bit packed `depth.png` (R = high 8 bits / G = low 8 bits) back into a `Float32Array`. World-space positions can be computed from just `camera.fovDeg` / `camera.farRange` in `meta.json`, so the shader side needs no extra parameters.
+`loadPackage(baseUrl)` tries the photo candidates in `meta.photo.sources` in order, while fetching the map files in parallel. It decodes the 16-bit packed `depth.png` (R = high 8 bits / G = low 8 bits) back into a `Float32Array`. Legacy packages without `photo.sources` still default to `photo.avif`.
 
 To wire it directly into your own shader, use `GLSL_SNIPPETS.unpackAndSampleDepth` / `GLSL_SNIPPETS.worldPosition`. Because the RG16 packing cannot use the GPU's bilinear interpolation, `unpackAndSampleDepth` reads with NEAREST sampling plus manual bilinear filtering.
 
@@ -36,7 +36,7 @@ Full type definitions ship in `dist/loader.d.ts`; this is a summary of the publi
 
 ### `loadPackage(baseUrl: string | URL): Promise<PhotoSpacePackage>`
 
-Fetches the five files under `baseUrl` in parallel and decodes them. A trailing `/` is added to `baseUrl` if missing, and it is resolved against `location.href`, so both relative (`"/sample/source/"`) and absolute URLs work.
+Fetches and decodes the package under `baseUrl`. A trailing `/` is added to `baseUrl` if missing, and it is resolved against `location.href`, so both relative (`"/sample/source/"`) and absolute URLs work.
 
 ```ts
 interface PhotoSpacePackage {

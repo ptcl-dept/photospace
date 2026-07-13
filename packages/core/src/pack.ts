@@ -2,10 +2,16 @@ export interface PhotoSpaceMeta {
   version: 1;
   source: { file: string; width: number; height: number };
   /**
-   * パッケージ内の写真ファイル名。省略時は "photo.avif"。
-   * ブラウザexportはAVIFエンコード非対応環境でWebP/PNGへフォールバックするため、実際のファイル名をここに記録する。
+   * パッケージ内の写真候補。省略時はphoto.avif。
+   * sourcesは優先順、fileは旧runtime向けにその第一候補を複製する。
    */
-  photo?: { file: string };
+  photo?: {
+    /** 旧runtime向けの第一候補。sources追加後も後方互換のため保持する。 */
+    file: string;
+    width?: number;
+    height?: number;
+    sources?: Array<{ file: string; type: PhotoMimeType }>;
+  };
   depth: {
     width: number;
     height: number;
@@ -21,12 +27,23 @@ export interface PhotoSpaceMeta {
   sourceHash: string;
 }
 
+export type PhotoFormat = "avif" | "webp" | "jpeg";
+export type PhotoMimeType = "image/avif" | "image/webp" | "image/jpeg";
+
 export interface PhotoSpaceConfig {
   version: 1;
   camera: { fovDeg: number; farRange: number };
   sky: { threshold: number };
   depth: { maxSize: number };
-  photo: { avifQuality: number };
+  /** depth/mask/normalは同じ解像度を共有する。maxBytesは3ファイル合計、0は無制限。 */
+  maps: { maxBytes: number; pngCompressionLevel: number };
+  photo: {
+    maxSize: number;
+    formats: PhotoFormat[];
+    avifQuality: number;
+    webpQuality: number;
+    jpegQuality: number;
+  };
 }
 
 export const DEFAULT_CONFIG: PhotoSpaceConfig = {
@@ -34,7 +51,14 @@ export const DEFAULT_CONFIG: PhotoSpaceConfig = {
   camera: { fovDeg: 55, farRange: 12 },
   sky: { threshold: 0.03 },
   depth: { maxSize: 1024 },
-  photo: { avifQuality: 50 },
+  maps: { maxBytes: 1_500_000, pngCompressionLevel: 9 },
+  photo: {
+    maxSize: 2048,
+    formats: ["avif", "webp"],
+    avifQuality: 50,
+    webpQuality: 75,
+    jpegQuality: 82,
+  },
 };
 
 /** R=上位8bit, G=下位8bit, B=0, A=255 の RGBA ラスタへパックする */

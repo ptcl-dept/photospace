@@ -1,19 +1,23 @@
 # Package format (version 1)
 
-The `bake` command of [`photospace-cli`](../packages/cli) writes the following five files into one directory per photo. [`photospace-runtime`](../packages/runtime) reads only this five-file set. The "Package (.zip)" button in the browser demo ([`src/main.ts`](../src/main.ts)) generates the same five-file set directly with the same `photospace-core` logic and bundles it into a single zip for download (for trying a single photo without the CLI).
+The `bake` command of [`photospace-cli`](../packages/cli) writes one or more photo variants and four required package files into one directory per photo. The "Package (.zip)" button in the browser demo generates the same format directly with `photospace-core` and bundles it into a zip.
 
 ```
 out/<name>/
-├── photo.avif    # Source photo (re-encoded to AVIF; may be photo.webp / photo.png when meta.photo.file is set)
+├── photo.avif    # First photo candidate by default
+├── photo.webp    # Optional fallback candidate
+├── photo.jpg     # Optional fallback candidate
 ├── depth.png     # Disparity (RG16 packed)
 ├── mask.png      # Sky mask (R) + edge mask (G)
 ├── normal.png    # World-space normals (RGB)
 └── meta.json     # Camera & normalization parameters
 ```
 
-If any file is missing, or `meta.json.version` is unsupported, `loadPackage()` fails.
+If a required map file is missing, no photo candidate can be decoded, or `meta.json.version` is unsupported, `loadPackage()` fails.
 
-The photo filename is `photo.avif` by default. Because AVIF encoding via `canvas.toBlob()` is unsupported in many browsers (including Chrome/Edge), the browser export falls back in the order AVIF → WebP → PNG and records the actual filename in `meta.json`'s `photo.file`. `photospace-runtime`'s `loadPackage()` reads `meta.photo?.file ?? "photo.avif"`. The CLI (sharp) always writes AVIF, so it omits the `photo` field.
+`meta.photo.sources` lists photo candidates in preference order. The runtime fetches and decodes each candidate until one succeeds. `photo.file` duplicates the first candidate for older runtimes; packages without either field still default to `photo.avif`. The CLI can emit every configured format. Browser export includes the requested formats its canvas encoder supports and uses JPEG as the final mandatory fallback if none can be encoded.
+
+Depth, mask and normal always share one resolution. `maps.maxBytes` is an encoding-time constraint, not metadata: when their combined PNG size exceeds it, all three are rebaked at a smaller common resolution and the actual dimensions are recorded in `depth.width` / `depth.height`.
 
 ## meta.json
 
@@ -21,7 +25,15 @@ The photo filename is `photo.avif` by default. Because AVIF encoding via `canvas
 interface PhotoSpaceMeta {
   version: 1;
   source: { file: string; width: number; height: number };
-  photo?: { file: string }; // Photo filename inside the package. Defaults to "photo.avif" when omitted
+  photo?: {
+    file: string; // First candidate; defaults to photo.avif when photo is omitted
+    width?: number;
+    height?: number;
+    sources?: Array<{
+      file: string;
+      type: "image/avif" | "image/webp" | "image/jpeg";
+    }>;
+  };
   depth: {
     width: number;
     height: number;

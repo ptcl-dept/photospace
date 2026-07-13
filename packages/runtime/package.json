@@ -1,7 +1,7 @@
 {
   "name": "photospace-runtime",
   "version": "0.1.0",
-  "description": "Photospace package loader — fetch and decode the photo.avif/depth.png/mask.png/normal.png/meta.json package baked by the photospace CLI, and recover world-space positions from it.",
+  "description": "Photospace package loader — select a decodable photo candidate, decode depth/mask/normal, and recover world-space positions.",
   "type": "module",
   "license": "MIT",
   "repository": {

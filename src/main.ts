@@ -3,7 +3,7 @@ import { Viewer } from "./viewer/gl.ts";
 import { bindDropzone } from "./ui/dropzone.ts";
 import { bindButtonGroup, bindSlider } from "./ui/controls.ts";
 import { downloadPackage, rasterizeToCanvas } from "./ui/exports.ts";
-import { loadDepthModel, estimateDepth, type DepthModel, normalizeDisparity, DEFAULT_CONFIG, type PhotoSpaceConfig, type RasterF32 } from "photospace-core";
+import { loadDepthModel, estimateDepth, type DepthModel, normalizeDisparity, DEFAULT_CONFIG, type PhotoFormat, type PhotoSpaceConfig, type RasterF32 } from "photospace-core";
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 const cv = $<HTMLCanvasElement>("cv");
@@ -16,6 +16,7 @@ const barIn = bar.firstElementChild as HTMLElement;
 const errBox = $<HTMLElement>("err");
 const stage = $<HTMLElement>("stage");
 const expPkgBtn = $<HTMLButtonElement>("expPkg");
+const packageForm = $<HTMLFormElement>("packageForm");
 
 interface LoadedPhoto {
   img: HTMLImageElement;
@@ -154,16 +155,44 @@ function setPointerFromEvent(e: PointerEvent): void {
 cv.addEventListener("pointermove", setPointerFromEvent);
 cv.addEventListener("pointerdown", setPointerFromEvent);
 
-expPkgBtn.onclick = async () => {
+const formatInputs = [
+  $<HTMLInputElement>("fmtAvif"),
+  $<HTMLInputElement>("fmtWebp"),
+  $<HTMLInputElement>("fmtJpeg"),
+];
+
+function validatePhotoFormats(): boolean {
+  const valid = formatInputs.some((input) => input.checked);
+  formatInputs[0].setCustomValidity(valid ? "" : "Select at least one photo format.");
+  return valid;
+}
+
+for (const input of formatInputs) input.addEventListener("input", validatePhotoFormats);
+
+packageForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  if (!validatePhotoFormats() || !packageForm.reportValidity()) return;
   if (!currentPhoto || !viewer) {
     fail("Load an image first.");
     return;
   }
   const photo = currentPhoto;
+  const formats = formatInputs.filter((input) => input.checked).map((input) => input.value as PhotoFormat);
+  const mapMaxMb = $<HTMLInputElement>("mapMaxMb").valueAsNumber;
   const config: PhotoSpaceConfig = {
     ...DEFAULT_CONFIG,
     camera: { fovDeg: viewer.state.fov, farRange: viewer.state.far },
     sky: { threshold: viewer.state.sky },
+    depth: { maxSize: $<HTMLInputElement>("mapMaxSize").valueAsNumber },
+    maps: {
+      ...DEFAULT_CONFIG.maps,
+      maxBytes: mapMaxMb === 0 ? 0 : Math.round(mapMaxMb * 1_000_000),
+    },
+    photo: {
+      ...DEFAULT_CONFIG.photo,
+      maxSize: $<HTMLInputElement>("photoMaxSize").valueAsNumber,
+      formats,
+    },
   };
 
   errBox.style.display = "none";
@@ -172,7 +201,7 @@ expPkgBtn.onclick = async () => {
   expPkgBtn.textContent = "Baking…";
   statusEl.textContent = "Baking package…";
   try {
-    await downloadPackage({
+    const summary = await downloadPackage({
       photo: {
         fileName: photo.fileName,
         bytes: photo.bytes,
@@ -186,11 +215,11 @@ expPkgBtn.onclick = async () => {
       normalization: photo.normalization,
       config,
     });
-    statusEl.textContent = "Running — move cursor over the photo";
+    statusEl.textContent = `Downloaded ${(summary.zipBytes / 1_000_000).toFixed(1)} MB · maps ${(summary.mapBytes / 1_000_000).toFixed(1)} MB at ${summary.mapWidth}×${summary.mapHeight}`;
   } catch (e) {
     fail((e as Error).message);
   } finally {
     expPkgBtn.disabled = false;
     expPkgBtn.textContent = prevLabel;
   }
-};
+});

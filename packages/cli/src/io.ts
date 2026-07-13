@@ -1,7 +1,13 @@
 import { readFile, mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import sharp from "sharp";
-import type { SourcePhoto, PhotoSpaceMeta } from "photospace-core";
+import type {
+  SourcePhoto,
+  PhotoSpaceConfig,
+  PhotoSpaceMeta,
+  PhotoFormat,
+  PhotoMimeType,
+} from "photospace-core";
 
 /** 元画像ファイルを読み込み、bakePhoto()へ渡せる形(RGBAピクセル込み)に変換する */
 export async function loadSourcePhoto(filePath: string): Promise<SourcePhoto> {
@@ -26,39 +32,96 @@ export async function readExistingMeta(outDir: string): Promise<PhotoSpaceMeta |
   }
 }
 
-async function writeRgbaPng(outPath: string, rgba: Uint8ClampedArray, width: number, height: number): Promise<void> {
-  await sharp(Buffer.from(rgba.buffer, rgba.byteOffset, rgba.byteLength), {
+export interface EncodedMaps {
+  depth: Uint8Array;
+  mask: Uint8Array;
+  normal: Uint8Array;
+  totalBytes: number;
+}
+
+async function encodeRgbaPng(
+  rgba: Uint8ClampedArray,
+  width: number,
+  height: number,
+  compressionLevel: number,
+): Promise<Uint8Array> {
+  return sharp(Buffer.from(rgba.buffer, rgba.byteOffset, rgba.byteLength), {
     raw: { width, height, channels: 4 },
   })
-    .png()
-    .toFile(outPath);
+    .png({ compressionLevel, effort: 10 })
+    .toBuffer();
+}
+
+export async function encodeMaps(input: {
+  depthRgba: Uint8ClampedArray;
+  maskRgba: Uint8ClampedArray;
+  normalRgba: Uint8ClampedArray;
+  width: number;
+  height: number;
+  compressionLevel: number;
+}): Promise<EncodedMaps> {
+  const [depth, mask, normal] = await Promise.all([
+    encodeRgbaPng(input.depthRgba, input.width, input.height, input.compressionLevel),
+    encodeRgbaPng(input.maskRgba, input.width, input.height, input.compressionLevel),
+    encodeRgbaPng(input.normalRgba, input.width, input.height, input.compressionLevel),
+  ]);
+  return { depth, mask, normal, totalBytes: depth.byteLength + mask.byteLength + normal.byteLength };
+}
+
+export interface EncodedPhotoSource {
+  file: string;
+  type: PhotoMimeType;
+  bytes: Uint8Array;
+  width: number;
+  height: number;
+}
+
+const PHOTO_OUTPUTS: Record<PhotoFormat, { file: string; type: PhotoMimeType }> = {
+  avif: { file: "photo.avif", type: "image/avif" },
+  webp: { file: "photo.webp", type: "image/webp" },
+  jpeg: { file: "photo.jpg", type: "image/jpeg" },
+};
+
+export async function encodePhotoSources(
+  photoBytes: Uint8Array,
+  config: PhotoSpaceConfig["photo"],
+): Promise<EncodedPhotoSource[]> {
+  const formats = [...new Set(config.formats)];
+  if (formats.length === 0) throw new Error("photo.formatsには1形式以上を指定してください。");
+
+  return Promise.all(
+    formats.map(async (format) => {
+      let pipeline = sharp(Buffer.from(photoBytes)).rotate().resize({
+        width: config.maxSize,
+        height: config.maxSize,
+        fit: "inside",
+        withoutEnlargement: true,
+      });
+      if (format === "avif") pipeline = pipeline.avif({ quality: config.avifQuality });
+      else if (format === "webp") pipeline = pipeline.webp({ quality: config.webpQuality });
+      else pipeline = pipeline.jpeg({ quality: config.jpegQuality, mozjpeg: true });
+
+      const { data, info } = await pipeline.toBuffer({ resolveWithObject: true });
+      return { ...PHOTO_OUTPUTS[format], bytes: data, width: info.width, height: info.height };
+    }),
+  );
 }
 
 export interface WritePackageInput {
   outDir: string;
-  photoBytes: Uint8Array;
-  photoWidth: number;
-  photoHeight: number;
-  avifQuality: number;
-  depthRgba: Uint8ClampedArray;
-  maskRgba: Uint8ClampedArray;
-  normalRgba: Uint8ClampedArray;
-  depthWidth: number;
-  depthHeight: number;
+  photoSources: EncodedPhotoSource[];
+  maps: EncodedMaps;
   meta: PhotoSpaceMeta;
 }
 
-/** パッケージ5点セット(photo.avif, depth.png, mask.png, normal.png, meta.json)を書き出す */
+/** エンコード済みの写真候補とdepth/mask/normal/meta.jsonを書き出す。 */
 export async function writePackage(input: WritePackageInput): Promise<void> {
   await mkdir(input.outDir, { recursive: true });
-
-  await sharp(Buffer.from(input.photoBytes))
-    .avif({ quality: input.avifQuality })
-    .toFile(path.join(input.outDir, "photo.avif"));
-
-  await writeRgbaPng(path.join(input.outDir, "depth.png"), input.depthRgba, input.depthWidth, input.depthHeight);
-  await writeRgbaPng(path.join(input.outDir, "mask.png"), input.maskRgba, input.depthWidth, input.depthHeight);
-  await writeRgbaPng(path.join(input.outDir, "normal.png"), input.normalRgba, input.depthWidth, input.depthHeight);
-
+  await Promise.all([
+    ...input.photoSources.map((source) => writeFile(path.join(input.outDir, source.file), source.bytes)),
+    writeFile(path.join(input.outDir, "depth.png"), input.maps.depth),
+    writeFile(path.join(input.outDir, "mask.png"), input.maps.mask),
+    writeFile(path.join(input.outDir, "normal.png"), input.maps.normal),
+  ]);
   await writeFile(path.join(input.outDir, "meta.json"), JSON.stringify(input.meta, null, 2));
 }

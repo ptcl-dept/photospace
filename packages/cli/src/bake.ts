@@ -1,8 +1,18 @@
 import path from "node:path";
 import { readFile, stat } from "node:fs/promises";
 import { glob } from "glob";
-import { bakePhoto, loadDepthModel, DEFAULT_CONFIG, computeSourceHash, type PhotoSpaceConfig } from "photospace-core";
-import { loadSourcePhoto, readExistingMeta, writePackage } from "./io.ts";
+import {
+  bakeFromDisparity,
+  loadDepthModel,
+  estimateDepth,
+  normalizeDisparity,
+  DEFAULT_CONFIG,
+  computeSourceHash,
+  nextMapMaxSize,
+  type PhotoSpaceConfig,
+  type PhotoFormat,
+} from "photospace-core";
+import { encodeMaps, encodePhotoSources, loadSourcePhoto, readExistingMeta, writePackage } from "./io.ts";
 
 const IMAGE_EXTENSIONS = ["jpg", "jpeg", "png", "webp", "avif", "tiff"];
 
@@ -14,7 +24,40 @@ export interface BakeCommandOptions {
 async function loadConfig(configPath?: string): Promise<PhotoSpaceConfig> {
   if (!configPath) return DEFAULT_CONFIG;
   const text = await readFile(configPath, "utf-8");
-  return { ...DEFAULT_CONFIG, ...JSON.parse(text) } as PhotoSpaceConfig;
+  const raw = JSON.parse(text) as Partial<PhotoSpaceConfig>;
+  const formats = raw.photo?.formats ?? DEFAULT_CONFIG.photo.formats;
+  const supported = new Set<PhotoFormat>(["avif", "webp", "jpeg"]);
+  if (!Array.isArray(formats) || formats.length === 0 || formats.some((format) => !supported.has(format))) {
+    throw new Error("photo.formatsには avif/webp/jpeg を1つ以上指定してください。");
+  }
+  const config: PhotoSpaceConfig = {
+    ...DEFAULT_CONFIG,
+    ...raw,
+    camera: { ...DEFAULT_CONFIG.camera, ...raw.camera },
+    sky: { ...DEFAULT_CONFIG.sky, ...raw.sky },
+    depth: { ...DEFAULT_CONFIG.depth, ...raw.depth },
+    maps: { ...DEFAULT_CONFIG.maps, ...raw.maps },
+    photo: { ...DEFAULT_CONFIG.photo, ...raw.photo, formats },
+  };
+  const checks: Array<[string, number, number, number]> = [
+    ["depth.maxSize", config.depth.maxSize, 64, 8192],
+    ["maps.maxBytes", config.maps.maxBytes, 0, Number.MAX_SAFE_INTEGER],
+    ["maps.pngCompressionLevel", config.maps.pngCompressionLevel, 0, 9],
+    ["photo.maxSize", config.photo.maxSize, 64, 16384],
+    ["photo.avifQuality", config.photo.avifQuality, 0, 100],
+    ["photo.webpQuality", config.photo.webpQuality, 0, 100],
+    ["photo.jpegQuality", config.photo.jpegQuality, 0, 100],
+  ];
+  for (const [name, value, min, max] of checks) {
+    if (!Number.isFinite(value) || value < min || value > max) {
+      throw new Error(`${name}は${min}〜${max}で指定してください。`);
+    }
+  }
+  if (!Number.isInteger(config.depth.maxSize) || !Number.isInteger(config.photo.maxSize) ||
+      !Number.isInteger(config.maps.maxBytes) || !Number.isInteger(config.maps.pngCompressionLevel)) {
+    throw new Error("maxSize、maxBytes、pngCompressionLevelは整数で指定してください。");
+  }
+  return config;
 }
 
 async function resolveInputFiles(patterns: string[]): Promise<string[]> {
@@ -63,18 +106,50 @@ export async function runBake(patterns: string[], opts: BakeCommandOptions): Pro
       }
 
       const photo = await loadSourcePhoto(file);
-      const baked = await bakePhoto(photo, { model, config });
+      const result = await estimateDepth(model, photo.input);
+      const normalized = normalizeDisparity(result.raw);
+      const lowRes = { width: result.width, height: result.height, data: normalized.data };
+
+      let mapMaxSize = config.depth.maxSize;
+      let baked;
+      let maps;
+      while (true) {
+        const effectiveConfig: PhotoSpaceConfig = {
+          ...config,
+          depth: { ...config.depth, maxSize: mapMaxSize },
+        };
+        baked = await bakeFromDisparity(photo, lowRes, { min: normalized.min, max: normalized.max }, {
+          config: effectiveConfig,
+        });
+        maps = await encodeMaps({
+          depthRgba: baked.depthRgba,
+          maskRgba: baked.maskRgba,
+          normalRgba: baked.normalRgba,
+          width: baked.depthWidth,
+          height: baked.depthHeight,
+          compressionLevel: config.maps.pngCompressionLevel,
+        });
+        if (config.maps.maxBytes <= 0 || maps.totalBytes <= config.maps.maxBytes) break;
+        const actualMaxSize = Math.max(baked.depthWidth, baked.depthHeight);
+        if (actualMaxSize <= 64) {
+          throw new Error(`maps.maxBytes=${config.maps.maxBytes}を最小解像度でも満たせませんでした。`);
+        }
+        mapMaxSize = nextMapMaxSize(actualMaxSize, maps.totalBytes, config.maps.maxBytes);
+      }
+
+      const photoSources = await encodePhotoSources(photo.bytes, config.photo);
+      const firstPhoto = photoSources[0];
+      baked.meta.sourceHash = sourceHash;
+      baked.meta.photo = {
+        file: firstPhoto.file,
+        width: firstPhoto.width,
+        height: firstPhoto.height,
+        sources: photoSources.map(({ file, type }) => ({ file, type })),
+      };
       await writePackage({
         outDir,
-        photoBytes: photo.bytes,
-        photoWidth: photo.width,
-        photoHeight: photo.height,
-        avifQuality: config.photo.avifQuality,
-        depthRgba: baked.depthRgba,
-        maskRgba: baked.maskRgba,
-        normalRgba: baked.normalRgba,
-        depthWidth: baked.depthWidth,
-        depthHeight: baked.depthHeight,
+        photoSources,
+        maps,
         meta: baked.meta,
       });
       console.log(`bake  ${baseName} -> ${outDir}`);

@@ -28,6 +28,55 @@ To wire it directly into your own shader, use `GLSL_SNIPPETS.unpackAndSampleDept
 
 See [`examples/three-scene`](https://github.com/ptcl-dept/photospace/tree/main/examples/three-scene) for a three.js implementation.
 
+> **Browser-only.** The loader relies on `fetch`, `createImageBitmap`, and `OffscreenCanvas`, so it runs in the browser (or a Worker), not in Node. To bake packages from Node, use [`photospace-cli`](https://github.com/ptcl-dept/photospace/tree/main/packages/cli).
+
+## API
+
+Full type definitions ship in `dist/loader.d.ts`; this is a summary of the public surface.
+
+### `loadPackage(baseUrl: string | URL): Promise<PhotoSpacePackage>`
+
+Fetches the five files under `baseUrl` in parallel and decodes them. A trailing `/` is added to `baseUrl` if missing, and it is resolved against `location.href`, so both relative (`"/sample/source/"`) and absolute URLs work.
+
+```ts
+interface PhotoSpacePackage {
+  meta: PhotoSpaceMeta;              // parsed meta.json
+  photo: ImageBitmap;                // decoded photo, ready as a texture source
+  depth: Float32Array;               // disparity 0..1 (1 = near), depthWidth * depthHeight
+  depthWidth: number;
+  depthHeight: number;
+  skyMask: Float32Array;             // 0..1 (1 = sky)
+  edgeMask: Float32Array;            // 0..1 (1 = non-edge)
+  normal: { nx: Float32Array; ny: Float32Array; nz: Float32Array }; // each -1..1
+}
+```
+
+`depth` is recovered from the RG16-packed `depth.png` as `(R * 256 + G) / 65535`. All arrays are row-major and share the same `depthWidth * depthHeight` length.
+
+### `worldPositionFromMeta(meta, u, v, disparity): [x, y, z]`
+
+Reconstructs a world-space position from a UV coordinate (`0..1`) and a disparity value, using only `camera.fovDeg` / `camera.farRange` from `meta`. The result is in a right-handed, camera-space frame looking down **−Z** (matching the viewer and the `GLSL_SNIPPETS.worldPosition` output).
+
+### `GLSL_SNIPPETS`
+
+Two GLSL (ES 3.0 / WebGL2) source strings you can concatenate into your own shader:
+
+- `unpackAndSampleDepth` — defines `float dsp(sampler2D uDep, vec2 uDRes, vec2 uv)`. Because the RG16 packing cannot use the GPU's bilinear interpolation, it samples with `texelFetch` (NEAREST) and does the bilinear blend manually. Requires the depth texture (`uDep`) and its resolution in texels (`uDRes`).
+- `worldPosition` — defines `float toZ(float d, float uFar)` and `vec3 wpos(vec2 uv, float d, float aspect, float uTanF, float uFar)`, the shader-side equivalent of `worldPositionFromMeta` (`uTanF = tan(fovDeg * π / 360)`).
+
+```glsl
+// vertex/fragment shader
+${GLSL_SNIPPETS.unpackAndSampleDepth}
+${GLSL_SNIPPETS.worldPosition}
+// ... later:
+float d = dsp(uDep, uDRes, uv);
+vec3 p = wpos(uv, d, aspect, uTanF, uFar);
+```
+
+### Types
+
+`PhotoSpaceMeta` and `PhotoSpacePackage` are exported for TypeScript consumers. `PhotoSpaceMeta` mirrors `meta.json` — see [`docs/package-format.md`](https://github.com/ptcl-dept/photospace/blob/main/docs/package-format.md) for the field-by-field spec.
+
 ## Package format
 
 [`docs/package-format.md`](https://github.com/ptcl-dept/photospace/blob/main/docs/package-format.md) documents the fields in detail along with the compatibility policy. The `version` field in `meta.json` guards against future format changes.

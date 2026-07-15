@@ -1,7 +1,7 @@
 {
   "name": "photospace-runtime",
   "version": "0.2.0",
-  "description": "Photospace package loader — select a decodable photo candidate, decode depth/mask/normal, and recover world-space positions.",
+  "description": "Photospace package loader — select a decodable photo candidate, decode depth and the bundled optional maps, and recover world-space positions.",
   "type": "module",
   "license": "MIT",
   "repository": {

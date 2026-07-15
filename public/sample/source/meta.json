@@ -1,7 +1,7 @@
 {
-  "version": 1,
+  "version": 2,
   "source": {
-    "file": "source.jpg",
+    "file": "photo.avif",
     "width": 960,
     "height": 640
   },
@@ -11,9 +11,15 @@
     "space": "disparity",
     "orientation": "near=1",
     "normalization": {
-      "min": 0.34656253457069397,
-      "max": 3.885498285293579
+      "min": 0.30676397681236267,
+      "max": 3.9255800247192383
     }
+  },
+  "mask": {
+    "file": "mask.png"
+  },
+  "normal": {
+    "file": "normal.png"
   },
   "camera": {
     "fovDeg": 55,
@@ -26,6 +32,25 @@
     "name": "onnx-community/depth-anything-v2-small",
     "revision": "main"
   },
-  "bakedAt": "2026-07-10T06:47:52.222Z",
-  "sourceHash": "cbdda98ad8fa768a87517e53f4af7c65e3528515b654645c367f76cd61e26789"
+  "bakedAt": "2026-07-15T01:32:24.039Z",
+  "sourceHash": "1ea65c850673346ae67755ac5634f70bc933dbea5864b34a4d1d1401fdc7c143",
+  "photo": {
+    "file": "photo.avif",
+    "width": 960,
+    "height": 640,
+    "sources": [
+      {
+        "file": "photo.avif",
+        "type": "image/avif"
+      },
+      {
+        "file": "photo.webp",
+        "type": "image/webp"
+      },
+      {
+        "file": "photo.jpg",
+        "type": "image/jpeg"
+      }
+    ]
+  }
 }

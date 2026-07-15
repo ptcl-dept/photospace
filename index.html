@@ -50,12 +50,17 @@
         <input id="mapMaxMb" type="number" min="0" max="1000" step="0.1" value="1.5" required inputmode="decimal" aria-describedby="mapMaxMbHelp">
         <span>MB</span>
       </div>
-      <small id="mapMaxMbHelp" class="field-help">Combined depth, mask and normal size. 0 disables the limit.</small>
+      <small id="mapMaxMbHelp" class="field-help">Combined size of the included maps. 0 disables the limit.</small>
       <fieldset class="format-fieldset">
         <legend>Photo formats</legend>
         <label><input id="fmtAvif" type="checkbox" value="avif" checked> AVIF</label>
         <label><input id="fmtWebp" type="checkbox" value="webp" checked> WebP</label>
-        <label><input id="fmtJpeg" type="checkbox" value="jpeg"> JPEG</label>
+        <label><input id="fmtJpeg" type="checkbox" value="jpeg" checked disabled> JPEG (always)</label>
+      </fieldset>
+      <fieldset class="format-fieldset">
+        <legend>Extra maps</legend>
+        <label><input id="mapMask" type="checkbox" value="mask"> Sky/edge mask</label>
+        <label><input id="mapNormal" type="checkbox" value="normal"> Normals</label>
       </fieldset>
       <button id="expPkg" class="button" type="submit">Download package (.zip)</button>
     </form>
@@ -90,9 +95,10 @@
     </div>
 
     <div id="hint" class="hint-panel card">
-      Photo formats are bundled as available and listed in meta.json; the runtime tries them in order.
-      Depth, mask and normal always share one resolution. If their combined PNG size exceeds the limit,
-      all three are rebaked at a smaller common resolution.
+      Photo formats are bundled as available and listed in meta.json; the runtime tries them in order,
+      with JPEG always included as the universal fallback. Extra maps are optional and declared in meta.json.
+      All included maps share one resolution — if their combined PNG size exceeds the limit,
+      they are rebaked at a smaller common resolution.
     </div>
   </div>
 </div>

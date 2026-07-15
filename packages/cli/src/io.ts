@@ -23,10 +23,11 @@ export async function loadSourcePhoto(filePath: string): Promise<SourcePhoto> {
   };
 }
 
-export async function readExistingMeta(outDir: string): Promise<PhotoSpaceMeta | null> {
+/** 既存出力のmeta.json。旧versionの可能性があるため、スキップ判定に使う項目だけの型で返す */
+export async function readExistingMeta(outDir: string): Promise<{ version?: number; sourceHash?: string } | null> {
   try {
     const text = await readFile(path.join(outDir, "meta.json"), "utf-8");
-    return JSON.parse(text) as PhotoSpaceMeta;
+    return JSON.parse(text) as { version?: number; sourceHash?: string };
   } catch {
     return null;
   }
@@ -34,8 +35,8 @@ export async function readExistingMeta(outDir: string): Promise<PhotoSpaceMeta |
 
 export interface EncodedMaps {
   depth: Uint8Array;
-  mask: Uint8Array;
-  normal: Uint8Array;
+  mask?: Uint8Array;
+  normal?: Uint8Array;
   totalBytes: number;
 }
 
@@ -52,20 +53,22 @@ async function encodeRgbaPng(
     .toBuffer();
 }
 
+/** 渡されたマップだけPNGエンコードする。totalBytesは同梱マップの合計。 */
 export async function encodeMaps(input: {
   depthRgba: Uint8ClampedArray;
-  maskRgba: Uint8ClampedArray;
-  normalRgba: Uint8ClampedArray;
+  maskRgba?: Uint8ClampedArray;
+  normalRgba?: Uint8ClampedArray;
   width: number;
   height: number;
   compressionLevel: number;
 }): Promise<EncodedMaps> {
   const [depth, mask, normal] = await Promise.all([
     encodeRgbaPng(input.depthRgba, input.width, input.height, input.compressionLevel),
-    encodeRgbaPng(input.maskRgba, input.width, input.height, input.compressionLevel),
-    encodeRgbaPng(input.normalRgba, input.width, input.height, input.compressionLevel),
+    input.maskRgba ? encodeRgbaPng(input.maskRgba, input.width, input.height, input.compressionLevel) : undefined,
+    input.normalRgba ? encodeRgbaPng(input.normalRgba, input.width, input.height, input.compressionLevel) : undefined,
   ]);
-  return { depth, mask, normal, totalBytes: depth.byteLength + mask.byteLength + normal.byteLength };
+  const totalBytes = depth.byteLength + (mask?.byteLength ?? 0) + (normal?.byteLength ?? 0);
+  return { depth, mask, normal, totalBytes };
 }
 
 export interface EncodedPhotoSource {
@@ -114,14 +117,15 @@ export interface WritePackageInput {
   meta: PhotoSpaceMeta;
 }
 
-/** エンコード済みの写真候補とdepth/mask/normal/meta.jsonを書き出す。 */
+/** エンコード済みの写真候補とdepth(+同梱マップ)/meta.jsonを書き出す。 */
 export async function writePackage(input: WritePackageInput): Promise<void> {
   await mkdir(input.outDir, { recursive: true });
-  await Promise.all([
+  const writes = [
     ...input.photoSources.map((source) => writeFile(path.join(input.outDir, source.file), source.bytes)),
     writeFile(path.join(input.outDir, "depth.png"), input.maps.depth),
-    writeFile(path.join(input.outDir, "mask.png"), input.maps.mask),
-    writeFile(path.join(input.outDir, "normal.png"), input.maps.normal),
-  ]);
+  ];
+  if (input.maps.mask) writes.push(writeFile(path.join(input.outDir, "mask.png"), input.maps.mask));
+  if (input.maps.normal) writes.push(writeFile(path.join(input.outDir, "normal.png"), input.maps.normal));
+  await Promise.all(writes);
   await writeFile(path.join(input.outDir, "meta.json"), JSON.stringify(input.meta, null, 2));
 }

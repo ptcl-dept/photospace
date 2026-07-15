@@ -155,29 +155,20 @@ function setPointerFromEvent(e: PointerEvent): void {
 cv.addEventListener("pointermove", setPointerFromEvent);
 cv.addEventListener("pointerdown", setPointerFromEvent);
 
-const formatInputs = [
-  $<HTMLInputElement>("fmtAvif"),
-  $<HTMLInputElement>("fmtWebp"),
-  $<HTMLInputElement>("fmtJpeg"),
-];
-
-function validatePhotoFormats(): boolean {
-  const valid = formatInputs.some((input) => input.checked);
-  formatInputs[0].setCustomValidity(valid ? "" : "Select at least one photo format.");
-  return valid;
-}
-
-for (const input of formatInputs) input.addEventListener("input", validatePhotoFormats);
-
 packageForm.addEventListener("submit", async (event) => {
   event.preventDefault();
-  if (!validatePhotoFormats() || !packageForm.reportValidity()) return;
+  if (!packageForm.reportValidity()) return;
   if (!currentPhoto || !viewer) {
     fail("Load an image first.");
     return;
   }
   const photo = currentPhoto;
-  const formats = formatInputs.filter((input) => input.checked).map((input) => input.value as PhotoFormat);
+  // JPEGは必須の最終フォールバックとして常に含める(UI側もchecked+disabled)
+  const formats: PhotoFormat[] = [
+    ...($<HTMLInputElement>("fmtAvif").checked ? (["avif"] as const) : []),
+    ...($<HTMLInputElement>("fmtWebp").checked ? (["webp"] as const) : []),
+    "jpeg",
+  ];
   const mapMaxMb = $<HTMLInputElement>("mapMaxMb").valueAsNumber;
   const config: PhotoSpaceConfig = {
     ...DEFAULT_CONFIG,
@@ -187,6 +178,8 @@ packageForm.addEventListener("submit", async (event) => {
     maps: {
       ...DEFAULT_CONFIG.maps,
       maxBytes: mapMaxMb === 0 ? 0 : Math.round(mapMaxMb * 1_000_000),
+      mask: $<HTMLInputElement>("mapMask").checked,
+      normal: $<HTMLInputElement>("mapNormal").checked,
     },
     photo: {
       ...DEFAULT_CONFIG.photo,

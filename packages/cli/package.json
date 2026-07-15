@@ -1,6 +1,6 @@
 {
   "name": "photospace-cli",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "description": "Photospace CLI — 写真候補とdepth/mask/normalを含むパッケージを一括生成する",
   "type": "module",
   "license": "MIT",

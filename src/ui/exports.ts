@@ -34,7 +34,7 @@ async function encodePng(rgba: Uint8ClampedArray<ArrayBuffer>, width: number, he
   return new Uint8Array(await blob.arrayBuffer());
 }
 
-/** canvasが実際に生成できた指定形式をすべて同梱し、JPEGを最終フォールバックにする。 */
+/** canvasが実際に生成できた指定形式をすべて同梱する。JPEGは必須のため常に候補へ加える。 */
 const PHOTO_ENCODE_CANDIDATES: Record<PhotoFormat, { name: string; type: PhotoMimeType }> = {
   avif: { name: "photo.avif", type: "image/avif" },
   webp: { name: "photo.webp", type: "image/webp" },
@@ -60,7 +60,8 @@ async function encodePhotoSources(
   config: PhotoSpaceConfig["photo"],
 ): Promise<EncodedPhoto[]> {
   const encoded: EncodedPhoto[] = [];
-  for (const format of new Set(config.formats)) {
+  // photo.jpgは必須の最終フォールバック。configにjpegがなくても構造的に含める。
+  for (const format of new Set<PhotoFormat>([...config.formats, "jpeg"])) {
     const candidate = PHOTO_ENCODE_CANDIDATES[format];
     const blob = await canvasToBlob(canvas, candidate.type, photoQuality(config, format));
     if (blob && blob.type === candidate.type) {
@@ -70,15 +71,12 @@ async function encodePhotoSources(
         width: canvas.width,
         height: canvas.height,
       });
+    } else if (format === "jpeg") {
+      // JPEGはcanvas実装の必須形式なので、ここに来るのは実装異常のみ
+      throw new Error("写真のエンコードに失敗しました。");
     }
   }
-  if (encoded.length > 0) return encoded;
-
-  // JPEGはcanvas実装の必須形式。指定形式を1つも生成できない環境の最終フォールバックにする。
-  const fallback = PHOTO_ENCODE_CANDIDATES.jpeg;
-  const blob = await canvasToBlob(canvas, fallback.type, config.jpegQuality / 100);
-  if (!blob || blob.type !== fallback.type) throw new Error("写真のエンコードに失敗しました。");
-  return [{ ...fallback, bytes: new Uint8Array(await blob.arrayBuffer()), width: canvas.width, height: canvas.height }];
+  return encoded;
 }
 
 function fitLongEdge(width: number, height: number, maxSize: number): [number, number] {
@@ -108,16 +106,17 @@ export interface PackageExportSummary {
 }
 
 /**
- * 写真候補とdepth/mask/normal/meta.jsonをブラウザだけで組み立て、zipとしてダウンロードする。
- * 容量上限を超えたマップは同じ長辺へまとめて縮小し、位置対応を維持する。
+ * 写真候補とdepth.png/meta.json(+オプションのmask/normal)をブラウザだけで組み立て、
+ * zipとしてダウンロードする。容量上限を超えたマップは同じ長辺へまとめて縮小し、位置対応を維持する。
  */
 export async function downloadPackage(input: ExportPackageInput): Promise<PackageExportSummary> {
   const requestedHash = await computeSourceHash(input.photo.bytes, input.config);
   let mapMaxSize = input.config.depth.maxSize;
   let baked: BakedPackage;
   let depthBytes: Uint8Array;
-  let maskBytes: Uint8Array;
-  let normalBytes: Uint8Array;
+  let maskBytes: Uint8Array | undefined;
+  let normalBytes: Uint8Array | undefined;
+  let mapBytes: number;
   while (true) {
     const effectiveConfig: PhotoSpaceConfig = {
       ...input.config,
@@ -128,16 +127,16 @@ export async function downloadPackage(input: ExportPackageInput): Promise<Packag
     });
     [depthBytes, maskBytes, normalBytes] = await Promise.all([
       encodePng(baked.depthRgba, baked.depthWidth, baked.depthHeight),
-      encodePng(baked.maskRgba, baked.depthWidth, baked.depthHeight),
-      encodePng(baked.normalRgba, baked.depthWidth, baked.depthHeight),
+      baked.maskRgba ? encodePng(baked.maskRgba, baked.depthWidth, baked.depthHeight) : undefined,
+      baked.normalRgba ? encodePng(baked.normalRgba, baked.depthWidth, baked.depthHeight) : undefined,
     ]);
-    const totalBytes = depthBytes.byteLength + maskBytes.byteLength + normalBytes.byteLength;
-    if (input.config.maps.maxBytes <= 0 || totalBytes <= input.config.maps.maxBytes) break;
+    mapBytes = depthBytes.byteLength + (maskBytes?.byteLength ?? 0) + (normalBytes?.byteLength ?? 0);
+    if (input.config.maps.maxBytes <= 0 || mapBytes <= input.config.maps.maxBytes) break;
     const actualMaxSize = Math.max(baked.depthWidth, baked.depthHeight);
     if (actualMaxSize <= 64) {
       throw new Error(`Map size limit (${input.config.maps.maxBytes} bytes) cannot be met at minimum resolution.`);
     }
-    mapMaxSize = nextMapMaxSize(actualMaxSize, totalBytes, input.config.maps.maxBytes);
+    mapMaxSize = nextMapMaxSize(actualMaxSize, mapBytes, input.config.maps.maxBytes);
   }
 
   const [photoW, photoH] = fitLongEdge(input.photo.width, input.photo.height, input.config.photo.maxSize);
@@ -159,8 +158,8 @@ export async function downloadPackage(input: ExportPackageInput): Promise<Packag
   const zip = createZip([
     ...photos.map((photo) => ({ name: photo.name, data: photo.bytes })),
     { name: "depth.png", data: depthBytes },
-    { name: "mask.png", data: maskBytes },
-    { name: "normal.png", data: normalBytes },
+    ...(maskBytes ? [{ name: "mask.png", data: maskBytes }] : []),
+    ...(normalBytes ? [{ name: "normal.png", data: normalBytes }] : []),
     { name: "meta.json", data: metaBytes },
   ]);
 
@@ -173,7 +172,7 @@ export async function downloadPackage(input: ExportPackageInput): Promise<Packag
 
   return {
     zipBytes: zip.size,
-    mapBytes: depthBytes.byteLength + maskBytes.byteLength + normalBytes.byteLength,
+    mapBytes,
     mapWidth: baked.depthWidth,
     mapHeight: baked.depthHeight,
     photoWidth: firstPhoto.width,

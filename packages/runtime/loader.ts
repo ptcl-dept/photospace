@@ -1,9 +1,9 @@
 /**
- * photospace CLI が書き出す meta.json の型。src/core/pack.ts の PhotoSpaceMeta と同じ形。
+ * photospace CLI が書き出す meta.json の型。version 1(旧形式)と2の両方を読む。
+ * v2の書き込み側の型は packages/core/src/pack.ts の PhotoSpaceMeta と同じ形。
  * runtime はビルド後に単体で配布されるため、コア側の型をimportせずここに複製している。
  */
-export interface PhotoSpaceMeta {
-  version: 1;
+interface PhotoSpaceMetaShared {
   source: { file: string; width: number; height: number };
   /** fileは旧runtime向け第一候補。新runtimeはsourcesを記載順にデコードする。 */
   photo?: {
@@ -25,6 +25,20 @@ export interface PhotoSpaceMeta {
   bakedAt: string;
   sourceHash: string;
 }
+
+/** v1: mask.png/normal.pngが常に同梱され、metaに宣言フィールドを持たない */
+export interface PhotoSpaceMetaV1 extends PhotoSpaceMetaShared {
+  version: 1;
+}
+
+/** v2: photo.jpgが必須の最終フォールバック。mask/normalはフィールドが存在する場合のみ同梱 */
+export interface PhotoSpaceMetaV2 extends PhotoSpaceMetaShared {
+  version: 2;
+  mask?: { file: string };
+  normal?: { file: string };
+}
+
+export type PhotoSpaceMeta = PhotoSpaceMetaV1 | PhotoSpaceMetaV2;
 
 /** depth.png(R=上位8bit, G=下位8bit)を復元する。d = (R*256 + G) / 65535 */
 function unpackDepthRG16(rgba: Uint8Array | Uint8ClampedArray): Float32Array {
@@ -65,11 +79,12 @@ export interface PhotoSpacePackage {
   depth: Float32Array;
   depthWidth: number;
   depthHeight: number;
-  /** 0..1 (1=空) */
-  skyMask: Float32Array;
-  /** 0..1 (1=非エッジ、現行ビューワのedge変数と同じ極性) */
-  edgeMask: Float32Array;
-  normal: { nx: Float32Array; ny: Float32Array; nz: Float32Array };
+  /** 0..1 (1=空)。mask.png同梱時のみ(v1パッケージは常に同梱) */
+  skyMask?: Float32Array;
+  /** 0..1 (1=非エッジ、現行ビューワのedge変数と同じ極性)。mask.png同梱時のみ */
+  edgeMask?: Float32Array;
+  /** normal.png同梱時のみ(v1パッケージは常に同梱) */
+  normal?: { nx: Float32Array; ny: Float32Array; nz: Float32Array };
 }
 
 async function fetchImageRaster(url: string): Promise<{ data: Uint8ClampedArray; width: number; height: number }> {
@@ -84,9 +99,18 @@ async function fetchImageRaster(url: string): Promise<{ data: Uint8ClampedArray;
   return { data: im.data, width: bitmap.width, height: bitmap.height };
 }
 
+/** metaから取得すべきマップファイル名を決める。v1は全マップ必須、v2は宣言されたものだけ */
+export function packageMapFiles(meta: PhotoSpaceMeta): { mask?: string; normal?: string } {
+  if (meta.version === 1) return { mask: "mask.png", normal: "normal.png" };
+  if (meta.version === 2) return { mask: meta.mask?.file, normal: meta.normal?.file };
+  throw new Error(`未対応のパッケージversionです: ${(meta as { version: number }).version}`);
+}
+
 export function photoFileCandidates(meta: PhotoSpaceMeta): string[] {
   const files = meta.photo?.sources?.map((source) => source.file) ?? [];
-  files.push(meta.photo?.file ?? "photo.avif");
+  if (meta.photo) files.push(meta.photo.file);
+  // v2はphoto.jpgが必須なので常に最終候補へ。v1は従来どおりphoto.avifを既定にする。
+  files.push(meta.version === 2 ? "photo.jpg" : (meta.photo?.file ?? "photo.avif"));
   return [...new Set(files)];
 }
 
@@ -104,7 +128,7 @@ async function fetchPhotoBitmap(base: string, meta: PhotoSpaceMeta): Promise<Ima
   throw new Error(`写真をデコードできませんでした (${failures.join(", ")})`);
 }
 
-/** baseUrl配下の写真/depth.png/mask.png/normal.png/meta.json を読み込む */
+/** baseUrl配下の写真/depth.png/meta.json(+metaが宣言するmask/normal)を読み込む */
 export async function loadPackage(baseUrl: string | URL): Promise<PhotoSpacePackage> {
   const normalized = typeof baseUrl === "string" && !baseUrl.endsWith("/") ? baseUrl + "/" : baseUrl;
   const base = new URL(normalized, location.href).toString();
@@ -112,31 +136,40 @@ export async function loadPackage(baseUrl: string | URL): Promise<PhotoSpacePack
   const metaResponse = await fetch(new URL("meta.json", base));
   if (!metaResponse.ok) throw new Error(`meta.jsonを取得できませんでした (${metaResponse.status})`);
   const meta: PhotoSpaceMeta = await metaResponse.json();
+  const mapFiles = packageMapFiles(meta); // 未対応versionはここでthrow
 
   const [depthRaster, maskRaster, normalRaster, photo] = await Promise.all([
     fetchImageRaster(new URL("depth.png", base).toString()),
-    fetchImageRaster(new URL("mask.png", base).toString()),
-    fetchImageRaster(new URL("normal.png", base).toString()),
+    mapFiles.mask ? fetchImageRaster(new URL(mapFiles.mask, base).toString()) : undefined,
+    mapFiles.normal ? fetchImageRaster(new URL(mapFiles.normal, base).toString()) : undefined,
     fetchPhotoBitmap(base, meta),
   ]);
 
   const depth = unpackDepthRG16(depthRaster.data);
   const count = depth.length;
 
-  const skyMask = new Float32Array(count);
-  const edgeMask = new Float32Array(count);
-  for (let i = 0; i < count; i++) {
-    skyMask[i] = maskRaster.data[i * 4] / 255;
-    edgeMask[i] = maskRaster.data[i * 4 + 1] / 255;
+  let skyMask: Float32Array | undefined;
+  let edgeMask: Float32Array | undefined;
+  if (maskRaster) {
+    skyMask = new Float32Array(count);
+    edgeMask = new Float32Array(count);
+    for (let i = 0; i < count; i++) {
+      skyMask[i] = maskRaster.data[i * 4] / 255;
+      edgeMask[i] = maskRaster.data[i * 4 + 1] / 255;
+    }
   }
 
-  const nx = new Float32Array(count);
-  const ny = new Float32Array(count);
-  const nz = new Float32Array(count);
-  for (let i = 0; i < count; i++) {
-    nx[i] = (normalRaster.data[i * 4] / 255) * 2 - 1;
-    ny[i] = (normalRaster.data[i * 4 + 1] / 255) * 2 - 1;
-    nz[i] = (normalRaster.data[i * 4 + 2] / 255) * 2 - 1;
+  let normal: PhotoSpacePackage["normal"];
+  if (normalRaster) {
+    const nx = new Float32Array(count);
+    const ny = new Float32Array(count);
+    const nz = new Float32Array(count);
+    for (let i = 0; i < count; i++) {
+      nx[i] = (normalRaster.data[i * 4] / 255) * 2 - 1;
+      ny[i] = (normalRaster.data[i * 4 + 1] / 255) * 2 - 1;
+      nz[i] = (normalRaster.data[i * 4 + 2] / 255) * 2 - 1;
+    }
+    normal = { nx, ny, nz };
   }
 
   return {
@@ -147,7 +180,7 @@ export async function loadPackage(baseUrl: string | URL): Promise<PhotoSpacePack
     depthHeight: meta.depth.height,
     skyMask,
     edgeMask,
-    normal: { nx, ny, nz },
+    normal,
   };
 }
 

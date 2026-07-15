@@ -22,10 +22,10 @@ export interface BakedPackage {
   meta: PhotoSpaceMeta;
   /** RG16パック済み深度 (RGBA raster, depth.width x depth.height) */
   depthRgba: Uint8ClampedArray<ArrayBuffer>;
-  /** R=空マスク, G=エッジマスク (RGBA raster, depth解像度) */
-  maskRgba: Uint8ClampedArray<ArrayBuffer>;
-  /** 法線 (RGBA raster, depth解像度) */
-  normalRgba: Uint8ClampedArray<ArrayBuffer>;
+  /** R=空マスク, G=エッジマスク (RGBA raster, depth解像度)。config.maps.mask有効時のみ */
+  maskRgba?: Uint8ClampedArray<ArrayBuffer>;
+  /** 法線 (RGBA raster, depth解像度)。config.maps.normal有効時のみ */
+  normalRgba?: Uint8ClampedArray<ArrayBuffer>;
   depthWidth: number;
   depthHeight: number;
 }
@@ -49,8 +49,9 @@ function fitLongEdge(width: number, height: number, maxSize: number): [number, n
 }
 
 /**
- * 正規化済み(0..1)の低解像度disparityから、エッジ整合アップサンプリング→マスク→法線 を行い、
- * パッケージ5点セットのうち photo.avif を除く4点分のラスタデータと meta.json を返す。
+ * 正規化済み(0..1)の低解像度disparityから、エッジ整合アップサンプリングと
+ * (config.maps で有効な場合のみ)マスク・法線の生成を行い、
+ * 写真候補を除くラスタデータと meta.json を返す。
  * 推論自体(estimateDepth)はこの関数の外で行う想定 — ビューワのようにdisparityを
  * 既に持っている呼び出し元が、モデル推論を再実行せずに済むようbakePhotoから切り出したもの。
  */
@@ -73,14 +74,23 @@ export async function bakeFromDisparity(
     opts.guidedFilter,
   );
 
-  const sky = computeSkyMask(upsampled, config.sky.threshold);
-  const edge = computeEdgeMask(upsampled);
-  const normals = computeNormals(upsampled, config.camera.fovDeg, config.camera.farRange);
+  // マスク・法線はオプトイン。無効時は計算自体をスキップする(最大でdepth解像度分の処理が省ける)。
+  let maskRgba: Uint8ClampedArray<ArrayBuffer> | undefined;
+  if (config.maps.mask) {
+    const sky = computeSkyMask(upsampled, config.sky.threshold);
+    const edge = computeEdgeMask(upsampled);
+    maskRgba = packMask(sky, edge);
+  }
+  let normalRgba: Uint8ClampedArray<ArrayBuffer> | undefined;
+  if (config.maps.normal) {
+    const normals = computeNormals(upsampled, config.camera.fovDeg, config.camera.farRange);
+    normalRgba = packNormal(normals.nx, normals.ny, normals.nz);
+  }
 
   const sourceHash = await computeSourceHash(photo.bytes, config);
 
   const meta: PhotoSpaceMeta = {
-    version: 1,
+    version: 2,
     source: { file: photo.fileName, width: photo.width, height: photo.height },
     depth: {
       width: depthW,
@@ -89,6 +99,8 @@ export async function bakeFromDisparity(
       orientation: "near=1",
       normalization,
     },
+    ...(maskRgba ? { mask: { file: "mask.png" } } : {}),
+    ...(normalRgba ? { normal: { file: "normal.png" } } : {}),
     camera: { fovDeg: config.camera.fovDeg, farRange: config.camera.farRange },
     sky: { threshold: config.sky.threshold },
     model: { name: MODEL_NAME, revision: MODEL_REVISION },
@@ -99,8 +111,8 @@ export async function bakeFromDisparity(
   return {
     meta,
     depthRgba: packDepthRG16(upsampled.data),
-    maskRgba: packMask(sky, edge),
-    normalRgba: packNormal(normals.nx, normals.ny, normals.nz),
+    maskRgba,
+    normalRgba,
     depthWidth: depthW,
     depthHeight: depthH,
   };

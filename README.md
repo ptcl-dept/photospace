@@ -1,6 +1,6 @@
 # Photospace
 
-Turn a single photo into a set of assets for parallax rendering using monocular depth estimation (`photo.avif` + optional WebP/JPEG fallbacks / `depth.png` / `mask.png` / `normal.png` / `meta.json`). The project ships both a browser demo viewer that runs entirely in the browser and a CLI for batch-processing many photos.
+Turn a single photo into a set of assets for parallax rendering using monocular depth estimation (`photo.jpg` + optional AVIF/WebP candidates / `depth.png` / `meta.json`, plus opt-in `mask.png` / `normal.png`). The project ships both a browser demo viewer that runs entirely in the browser and a CLI for batch-processing many photos.
 
 **Live demo: [photospace-app.vercel.app](https://photospace-app.vercel.app)**
 

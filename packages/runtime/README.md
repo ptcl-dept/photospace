@@ -1,6 +1,6 @@
 # photospace-runtime
 
-A lightweight loader that reads a Photospace package (ordered AVIF/WebP/JPEG photo candidates plus `depth.png` / `mask.png` / `normal.png` / `meta.json`) baked by [`photospace-cli`](https://github.com/ptcl-dept/photospace/tree/main/packages/cli), and returns decoded rasters plus helpers for recovering world-space positions. It is renderer-agnostic, so it works with three.js, raw WebGL, or Canvas2D.
+A lightweight loader that reads a Photospace package (ordered AVIF/WebP/JPEG photo candidates plus `depth.png` / `meta.json`, and optional `mask.png` / `normal.png`) baked by [`photospace-cli`](https://github.com/ptcl-dept/photospace/tree/main/packages/cli), and returns decoded rasters plus helpers for recovering world-space positions. It is renderer-agnostic, so it works with three.js, raw WebGL, or Canvas2D.
 
 ## Install
 
@@ -16,13 +16,17 @@ import { loadPackage, worldPositionFromMeta } from "photospace-runtime";
 const pkg = await loadPackage("/sample/source/");
 // pkg.photo:   ImageBitmap
 // pkg.depth:   Float32Array (0..1, depthWidth x depthHeight)
-// pkg.skyMask / pkg.edgeMask: Float32Array (0..1)
-// pkg.normal:  { nx, ny, nz: Float32Array } (-1..1)
+// pkg.skyMask / pkg.edgeMask: Float32Array (0..1) | undefined — only when mask.png is bundled
+// pkg.normal:  { nx, ny, nz: Float32Array } (-1..1) | undefined — only when normal.png is bundled
+
+if (pkg.skyMask) {
+  // mask-dependent path; sky can also be derived from disparity + pkg.meta.sky.threshold
+}
 
 const [x, y, z] = worldPositionFromMeta(pkg.meta, u, v, disparity);
 ```
 
-`loadPackage(baseUrl)` tries the photo candidates in `meta.photo.sources` in order, while fetching the map files in parallel. It decodes the 16-bit packed `depth.png` (R = high 8 bits / G = low 8 bits) back into a `Float32Array`. Legacy packages without `photo.sources` still default to `photo.avif`.
+`loadPackage(baseUrl)` tries the photo candidates in `meta.photo.sources` in order (a version 2 package always ends with the mandatory `photo.jpg`), while fetching the map files declared by `meta.json` in parallel. It decodes the 16-bit packed `depth.png` (R = high 8 bits / G = low 8 bits) back into a `Float32Array`. Version 1 packages are still supported: all maps are fetched unconditionally and packages without `photo.sources` default to `photo.avif`.
 
 To wire it directly into your own shader, use `GLSL_SNIPPETS.unpackAndSampleDepth` / `GLSL_SNIPPETS.worldPosition`. Because the RG16 packing cannot use the GPU's bilinear interpolation, `unpackAndSampleDepth` reads with NEAREST sampling plus manual bilinear filtering.
 
@@ -40,14 +44,14 @@ Fetches and decodes the package under `baseUrl`. A trailing `/` is added to `bas
 
 ```ts
 interface PhotoSpacePackage {
-  meta: PhotoSpaceMeta;              // parsed meta.json
+  meta: PhotoSpaceMeta;              // parsed meta.json (version 1 or 2)
   photo: ImageBitmap;                // decoded photo, ready as a texture source
   depth: Float32Array;               // disparity 0..1 (1 = near), depthWidth * depthHeight
   depthWidth: number;
   depthHeight: number;
-  skyMask: Float32Array;             // 0..1 (1 = sky)
-  edgeMask: Float32Array;            // 0..1 (1 = non-edge)
-  normal: { nx: Float32Array; ny: Float32Array; nz: Float32Array }; // each -1..1
+  skyMask?: Float32Array;            // 0..1 (1 = sky); only when mask.png is bundled
+  edgeMask?: Float32Array;           // 0..1 (1 = non-edge); only when mask.png is bundled
+  normal?: { nx: Float32Array; ny: Float32Array; nz: Float32Array }; // each -1..1; only when normal.png is bundled
 }
 ```
 
@@ -79,7 +83,9 @@ vec3 p = wpos(uv, d, aspect, uTanF, uFar);
 
 ## Package format
 
-[`docs/package-format.md`](https://github.com/ptcl-dept/photospace/blob/main/docs/package-format.md) documents the fields in detail along with the compatibility policy. The `version` field in `meta.json` guards against future format changes.
+[`docs/package-format.md`](https://github.com/ptcl-dept/photospace/blob/main/docs/package-format.md) documents the fields in detail along with the compatibility policy. The `version` field in `meta.json` guards against future format changes; this loader reads versions 1 and 2 and throws on anything else.
+
+> **Breaking change in 0.2.0:** `skyMask`, `edgeMask`, and `normal` are now optional — version 2 packages bundle `mask.png` / `normal.png` only when baked with them enabled. Runtimes ≤0.1.x cannot read v2 packages baked without both maps.
 
 ## Building from source
 

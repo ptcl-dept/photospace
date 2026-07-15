@@ -19,16 +19,31 @@ const IMAGE_EXTENSIONS = ["jpg", "jpeg", "png", "webp", "avif", "tiff"];
 export interface BakeCommandOptions {
   config?: string;
   out: string;
+  /** config値に対する上書き有効化(--mask / --normal フラグ) */
+  mask?: boolean;
+  normal?: boolean;
 }
 
-async function loadConfig(configPath?: string): Promise<PhotoSpaceConfig> {
-  if (!configPath) return DEFAULT_CONFIG;
-  const text = await readFile(configPath, "utf-8");
-  const raw = JSON.parse(text) as Partial<PhotoSpaceConfig>;
+export interface ConfigOverrides {
+  mask?: boolean;
+  normal?: boolean;
+}
+
+export async function loadConfig(configPath?: string, overrides: ConfigOverrides = {}): Promise<PhotoSpaceConfig> {
+  const raw = configPath ? (JSON.parse(await readFile(configPath, "utf-8")) as Partial<PhotoSpaceConfig>) : {};
   const formats = raw.photo?.formats ?? DEFAULT_CONFIG.photo.formats;
   const supported = new Set<PhotoFormat>(["avif", "webp", "jpeg"]);
-  if (!Array.isArray(formats) || formats.length === 0 || formats.some((format) => !supported.has(format))) {
-    throw new Error("photo.formatsには avif/webp/jpeg を1つ以上指定してください。");
+  if (!Array.isArray(formats) || formats.some((format) => !supported.has(format))) {
+    throw new Error("photo.formatsには avif/webp/jpeg のみ指定できます。");
+  }
+  if (!formats.includes("jpeg")) {
+    throw new Error("photo.formatsにはjpegを含めてください(パッケージはphoto.jpgを必須の最終フォールバックとします)。");
+  }
+  for (const key of ["mask", "normal"] as const) {
+    const value = raw.maps?.[key];
+    if (value !== undefined && typeof value !== "boolean") {
+      throw new Error(`maps.${key}はtrue/falseで指定してください。`);
+    }
   }
   const config: PhotoSpaceConfig = {
     ...DEFAULT_CONFIG,
@@ -36,7 +51,12 @@ async function loadConfig(configPath?: string): Promise<PhotoSpaceConfig> {
     camera: { ...DEFAULT_CONFIG.camera, ...raw.camera },
     sky: { ...DEFAULT_CONFIG.sky, ...raw.sky },
     depth: { ...DEFAULT_CONFIG.depth, ...raw.depth },
-    maps: { ...DEFAULT_CONFIG.maps, ...raw.maps },
+    maps: {
+      ...DEFAULT_CONFIG.maps,
+      ...raw.maps,
+      ...(overrides.mask !== undefined ? { mask: overrides.mask } : {}),
+      ...(overrides.normal !== undefined ? { normal: overrides.normal } : {}),
+    },
     photo: { ...DEFAULT_CONFIG.photo, ...raw.photo, formats },
   };
   const checks: Array<[string, number, number, number]> = [
@@ -79,7 +99,7 @@ async function resolveInputFiles(patterns: string[]): Promise<string[]> {
 
 /** `photospace bake` の本体。1枚ずつ処理し、失敗しても他ファイルの処理は継続する */
 export async function runBake(patterns: string[], opts: BakeCommandOptions): Promise<{ failed: number }> {
-  const config = await loadConfig(opts.config);
+  const config = await loadConfig(opts.config, { mask: opts.mask, normal: opts.normal });
   const files = await resolveInputFiles(patterns);
 
   if (files.length === 0) {
@@ -99,7 +119,8 @@ export async function runBake(patterns: string[], opts: BakeCommandOptions): Pro
       const photoBytes = await readFile(file);
       const sourceHash = await computeSourceHash(photoBytes, config);
       const existing = await readExistingMeta(outDir);
-      if (existing?.sourceHash === sourceHash) {
+      // configはハッシュに含まれるため通常は自動でリベイクされるが、旧version出力の温存を明示的に防ぐ
+      if (existing?.sourceHash === sourceHash && existing.version === 2) {
         console.log(`skip  ${baseName} (変更なし)`);
         skipped++;
         continue;

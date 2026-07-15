@@ -1,6 +1,11 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { photoFileCandidates, type PhotoSpaceMeta } from "../loader.ts";
+import {
+  packageMapFiles,
+  photoFileCandidates,
+  type PhotoSpaceMeta,
+  type PhotoSpaceMetaV2,
+} from "../loader.ts";
 
 function meta(photo?: PhotoSpaceMeta["photo"]): PhotoSpaceMeta {
   return {
@@ -22,6 +27,10 @@ function meta(photo?: PhotoSpaceMeta["photo"]): PhotoSpaceMeta {
   };
 }
 
+function metaV2(fields?: Partial<PhotoSpaceMetaV2>): PhotoSpaceMetaV2 {
+  return { ...meta(), ...fields, version: 2 };
+}
+
 test("photoFileCandidates keeps legacy AVIF default", () => {
   assert.deepEqual(photoFileCandidates(meta()), ["photo.avif"]);
 });
@@ -37,4 +46,37 @@ test("photoFileCandidates uses sources in order and removes duplicate legacy fil
     })),
     ["photo.avif", "photo.webp"],
   );
+});
+
+test("photoFileCandidates falls back to the mandatory photo.jpg on v2", () => {
+  assert.deepEqual(photoFileCandidates(metaV2()), ["photo.jpg"]);
+  assert.deepEqual(
+    photoFileCandidates(metaV2({
+      photo: {
+        file: "photo.avif",
+        sources: [
+          { file: "photo.avif", type: "image/avif" },
+          { file: "photo.webp", type: "image/webp" },
+          { file: "photo.jpg", type: "image/jpeg" },
+        ],
+      },
+    })),
+    ["photo.avif", "photo.webp", "photo.jpg"],
+  );
+});
+
+test("packageMapFiles requires every map on v1", () => {
+  assert.deepEqual(packageMapFiles(meta()), { mask: "mask.png", normal: "normal.png" });
+});
+
+test("packageMapFiles returns only the maps declared by v2 meta", () => {
+  assert.deepEqual(packageMapFiles(metaV2()), { mask: undefined, normal: undefined });
+  assert.deepEqual(
+    packageMapFiles(metaV2({ mask: { file: "mask.png" }, normal: { file: "normal.png" } })),
+    { mask: "mask.png", normal: "normal.png" },
+  );
+});
+
+test("packageMapFiles rejects unsupported versions", () => {
+  assert.throws(() => packageMapFiles({ ...meta(), version: 3 } as unknown as PhotoSpaceMeta), /version/);
 });

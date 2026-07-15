@@ -1,9 +1,9 @@
 export interface PhotoSpaceMeta {
-  version: 1;
+  version: 2;
   source: { file: string; width: number; height: number };
   /**
-   * パッケージ内の写真候補。省略時はphoto.avif。
-   * sourcesは優先順、fileは旧runtime向けにその第一候補を複製する。
+   * パッケージ内の写真候補。sourcesは優先順、fileは旧runtime向けにその第一候補を複製する。
+   * version 2ではphoto.jpgが必ず候補に含まれる(必須の最終フォールバック)。
    */
   photo?: {
     /** 旧runtime向けの第一候補。sources追加後も後方互換のため保持する。 */
@@ -19,7 +19,12 @@ export interface PhotoSpaceMeta {
     orientation: "near=1";
     normalization: { min: number; max: number };
   };
+  /** 存在する場合のみmask.pngが同梱されている */
+  mask?: { file: string };
+  /** 存在する場合のみnormal.pngが同梱されている */
+  normal?: { file: string };
   camera: { fovDeg: number; farRange: number };
+  /** mask.pngがなくてもシェーダー内の空判定に使うためトップレベルに置く */
   sky: { threshold: number };
   model: { name: string; revision: string };
   bakedAt: string;
@@ -35,8 +40,11 @@ export interface PhotoSpaceConfig {
   camera: { fovDeg: number; farRange: number };
   sky: { threshold: number };
   depth: { maxSize: number };
-  /** depth/mask/normalは同じ解像度を共有する。maxBytesは3ファイル合計、0は無制限。 */
-  maps: { maxBytes: number; pngCompressionLevel: number };
+  /**
+   * 同梱するマップは同じ解像度を共有する。maxBytesは同梱マップの合計、0は無制限。
+   * mask/normalはオプトイン(既定false)で、有効時のみ生成・同梱される。
+   */
+  maps: { maxBytes: number; pngCompressionLevel: number; mask: boolean; normal: boolean };
   photo: {
     maxSize: number;
     formats: PhotoFormat[];
@@ -51,10 +59,10 @@ export const DEFAULT_CONFIG: PhotoSpaceConfig = {
   camera: { fovDeg: 55, farRange: 12 },
   sky: { threshold: 0.03 },
   depth: { maxSize: 1024 },
-  maps: { maxBytes: 1_500_000, pngCompressionLevel: 9 },
+  maps: { maxBytes: 1_500_000, pngCompressionLevel: 9, mask: false, normal: false },
   photo: {
     maxSize: 2048,
-    formats: ["avif", "webp"],
+    formats: ["avif", "webp", "jpeg"],
     avifQuality: 50,
     webpQuality: 75,
     jpegQuality: 82,

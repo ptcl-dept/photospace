@@ -48,6 +48,44 @@ function lerp(a: number, b: number, t: number): number {
   return a + (b - a) * t;
 }
 
+/**
+ * RGBA(Uint8)を目標解像度へバイリニア縮小しながらグレースケール輝度のFloat32ラスタへ変換する。
+ * バイリニア補間も輝度変換も線形なので「グレー化→リサイズ」と結果は同一だが、
+ * 元解像度での全画素グレー化を省けるため計算量は出力画素数のみに比例する。
+ */
+export function resizeRgbaToGrayF32(
+  rgba: ArrayLike<number>,
+  srcW: number,
+  srcH: number,
+  dstW: number,
+  dstH: number,
+): RasterF32 {
+  const out = new Float32Array(dstW * dstH);
+  const sx = srcW / dstW;
+  const sy = srcH / dstH;
+  for (let y = 0; y < dstH; y++) {
+    const fy = Math.min(Math.max((y + 0.5) * sy - 0.5, 0), srcH - 1);
+    const y0 = Math.floor(fy);
+    const y1 = Math.min(y0 + 1, srcH - 1);
+    const ty = fy - y0;
+    for (let x = 0; x < dstW; x++) {
+      const fx = Math.min(Math.max((x + 0.5) * sx - 0.5, 0), srcW - 1);
+      const x0 = Math.floor(fx);
+      const x1 = Math.min(x0 + 1, srcW - 1);
+      const tx = fx - x0;
+      const ia = (y0 * srcW + x0) * 4;
+      const ib = (y0 * srcW + x1) * 4;
+      const ic = (y1 * srcW + x0) * 4;
+      const id = (y1 * srcW + x1) * 4;
+      const r = lerp(lerp(rgba[ia], rgba[ib], tx), lerp(rgba[ic], rgba[id], tx), ty);
+      const g = lerp(lerp(rgba[ia + 1], rgba[ib + 1], tx), lerp(rgba[ic + 1], rgba[id + 1], tx), ty);
+      const b = lerp(lerp(rgba[ia + 2], rgba[ib + 2], tx), lerp(rgba[ic + 2], rgba[id + 2], tx), ty);
+      out[y * dstW + x] = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+    }
+  }
+  return { width: dstW, height: dstH, data: out };
+}
+
 /** Summed-area table を使った O(wh) の box filter (平均値) */
 function boxFilterMean(data: Float32Array, w: number, h: number, radius: number): Float32Array {
   const sat = new Float64Array((w + 1) * (h + 1));
@@ -141,8 +179,7 @@ export function guidedUpsampleDepth(
   targetHeight: number,
   opts?: GuidedFilterOptions,
 ): RasterF32 {
-  const guideGray = rgbaToGrayF32(guideRgba, guideWidth, guideHeight);
-  const guideAtTarget = bilinearResizeF32(guideGray, targetWidth, targetHeight);
+  const guideAtTarget = resizeRgbaToGrayF32(guideRgba, guideWidth, guideHeight, targetWidth, targetHeight);
   const depthAtTarget = bilinearResizeF32(depthLowRes, targetWidth, targetHeight);
   return guidedFilter(guideAtTarget, depthAtTarget, opts);
 }

@@ -13,6 +13,7 @@ export { normalizeDisparity, type NormalizeResult } from "./normalize.ts";
 export {
   rgbaToGrayF32,
   bilinearResizeF32,
+  resizeRgbaToGrayF32,
   guidedFilter,
   guidedUpsampleDepth,
   type RasterF32,

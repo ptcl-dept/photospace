@@ -6,13 +6,13 @@
     "height": 1630
   },
   "depth": {
-    "width": 666,
-    "height": 452,
+    "width": 662,
+    "height": 450,
     "space": "disparity",
     "orientation": "near=1",
     "normalization": {
       "min": 0,
-      "max": 5.9082722663879395
+      "max": 5.98029899597168
     }
   },
   "mask": {
@@ -32,13 +32,17 @@
     "name": "onnx-community/depth-anything-v2-small",
     "revision": "main"
   },
-  "bakedAt": "2026-07-23T02:33:28.310Z",
-  "sourceHash": "8c795e28b95c9cf1db7f05132051c3c86b6b1c64e86a74e42d57166bc2117b6f",
+  "bakedAt": "2026-07-23T05:52:09.778Z",
+  "sourceHash": "9d2c071ecf9fa946b3f96cc256c5ba9f8ee6f361c97214d6a4960337ed65fc77",
   "photo": {
-    "file": "photo.webp",
+    "file": "photo.avif",
     "width": 2048,
     "height": 1391,
     "sources": [
+      {
+        "file": "photo.avif",
+        "type": "image/avif"
+      },
       {
         "file": "photo.webp",
         "type": "image/webp"

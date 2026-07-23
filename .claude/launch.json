@@ -4,8 +4,8 @@
     {
       "name": "depth-splats",
       "runtimeExecutable": "pnpm",
-      "runtimeArgs": ["dev:depth-splats"],
-      "port": 5173
+      "runtimeArgs": ["dev:depth-splats", "--port", "5199", "--strictPort"],
+      "port": 5199
     },
     {
       "name": "three-scene",

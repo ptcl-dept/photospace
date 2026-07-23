@@ -3,6 +3,10 @@ import { pipeline, env, type PretrainedModelOptions, type DepthEstimationPipelin
 export const MODEL_NAME = "onnx-community/depth-anything-v2-small";
 export const MODEL_REVISION = "main";
 
+/** transformers.jsのdtype指定のうち、configで選択を許可する集合 */
+export const MODEL_DTYPES = ["fp32", "fp16", "q8", "int8", "uint8", "q4", "q4f16", "bnb4"] as const;
+export type ModelDtype = (typeof MODEL_DTYPES)[number];
+
 export interface DepthEstimationResult {
   width: number;
   height: number;
@@ -20,9 +24,12 @@ export type DepthModel = DepthEstimationPipeline;
 /**
  * ブラウザではWebGPU→WASMの順でフォールバック、Node(CLI)ではCPUバックエンドを使う。
  * transformers.jsは環境を自動判別してonnxruntime-web/onnxruntime-nodeを切り替える。
+ * opts.dtypeはNode(CLI)のCPU推論にのみ適用される。ブラウザのWebGPU=fp32 / WASM=q8は
+ * バックエンドごとの品質・速度の実測に基づく固定値のため上書きしない。
  */
 export async function loadDepthModel(opts?: {
   onProgress?: (p: ProgressEvent) => void;
+  dtype?: ModelDtype;
 }): Promise<DepthModel> {
   const isBrowser = typeof window !== "undefined";
   const progress_callback = opts?.onProgress
@@ -46,7 +53,7 @@ export async function loadDepthModel(opts?: {
         { device: "webgpu", dtype: "fp32" },
         { device: "wasm", dtype: "q8" },
       ]
-    : [{ device: "cpu", dtype: "fp32" }];
+    : [{ device: "cpu", dtype: opts?.dtype ?? "fp32" }];
 
   if (isBrowser && !("gpu" in navigator)) {
     candidates.shift();

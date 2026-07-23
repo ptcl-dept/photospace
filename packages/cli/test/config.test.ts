@@ -29,6 +29,17 @@ test("loadConfig rejects non-boolean maps.mask", async () => {
   await assert.rejects(loadConfig(file), /maps\.mask/);
 });
 
+test("loadConfig defaults model.dtype to fp32 and accepts q8", async () => {
+  assert.equal((await loadConfig()).model.dtype, "fp32");
+  const file = await writeConfig({ model: { dtype: "q8" } });
+  assert.equal((await loadConfig(file)).model.dtype, "q8");
+});
+
+test("loadConfig rejects unknown model.dtype", async () => {
+  const file = await writeConfig({ model: { dtype: "fp64" } });
+  await assert.rejects(loadConfig(file), /model\.dtype/);
+});
+
 test("loadConfig applies flag overrides on top of config values", async () => {
   const file = await writeConfig({ maps: { mask: false, normal: true } });
   const config = await loadConfig(file, { mask: true });

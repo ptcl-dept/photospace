@@ -1,3 +1,5 @@
+import type { ModelDtype } from "./depth.ts";
+
 export interface PhotoSpaceMeta {
   version: 2;
   source: { file: string; width: number; height: number };
@@ -40,6 +42,8 @@ export interface PhotoSpaceConfig {
   camera: { fovDeg: number; farRange: number };
   sky: { threshold: number };
   depth: { maxSize: number };
+  /** dtypeはNode(CLI)推論の重み精度。fp32が品質基準、q8等の量子化で高速化できる */
+  model: { dtype: ModelDtype };
   /**
    * 同梱するマップは同じ解像度を共有する。maxBytesは同梱マップの合計、0は無制限。
    * mask/normalはオプトイン(既定false)で、有効時のみ生成・同梱される。
@@ -59,6 +63,7 @@ export const DEFAULT_CONFIG: PhotoSpaceConfig = {
   camera: { fovDeg: 55, farRange: 12 },
   sky: { threshold: 0.03 },
   depth: { maxSize: 1024 },
+  model: { dtype: "fp32" },
   maps: { maxBytes: 1_500_000, pngCompressionLevel: 9, mask: false, normal: false },
   photo: {
     maxSize: 2048,

@@ -1,6 +1,8 @@
 export {
   MODEL_NAME,
   MODEL_REVISION,
+  MODEL_DTYPES,
+  type ModelDtype,
   loadDepthModel,
   estimateDepth,
   type DepthModel,

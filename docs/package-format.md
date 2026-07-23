@@ -72,7 +72,7 @@ An 8-bit PNG can only represent 256 levels, producing banding artifacts in depth
 ```
 R = (d16 >> 8) & 0xff   // high 8 bits
 G =  d16       & 0xff   // low 8 bits
-B = 0, A = 255
+B = 0
 d16 = round(clamp01(d) * 65535)
 ```
 
@@ -83,12 +83,18 @@ Recovered with `d = (R*256 + G) / 65535`. The GPU's bilinear interpolation canno
 ```
 R = round(clamp01(skyMask)  * 255)  // 1 = sky
 G = round(clamp01(edgeMask) * 255)  // 1 = non-edge (approaches 0 near silhouettes)
-B = 0, A = 255
+B = 0
 ```
 
 ## normal.png (optional)
 
-World-space normals (-1..1) are mapped to 0..1 with `n*0.5+0.5` and stored in RGB (A=255).
+World-space normals (-1..1) are mapped to 0..1 with `n*0.5+0.5` and stored in RGB.
+
+## Map PNG channels
+
+The alpha channel of every map is unused, so encoders may write either RGB (3-channel) or RGBA (with A=255) PNGs — the CLI writes RGB, while the browser demo's canvas encoder emits RGBA. Decoders always see the same values: browser decoding (`getImageData` / `texImage2D`) expands RGB PNGs to RGBA with A=255.
+
+Encoders must not emit palette (indexed) PNGs: quantizing to ≤256 colors corrupts the RG16 depth packing (and degrades the other maps). CLI ≤0.2.x accidentally palettized its maps via sharp's `effort` option; 0.3.0 fixes this.
 
 ## Version 1 (legacy)
 

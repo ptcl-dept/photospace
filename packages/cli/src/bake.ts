@@ -7,10 +7,12 @@ import {
   estimateDepth,
   normalizeDisparity,
   DEFAULT_CONFIG,
+  MODEL_DTYPES,
   computeSourceHash,
   nextMapMaxSize,
   type PhotoSpaceConfig,
   type PhotoFormat,
+  type ModelDtype,
 } from "photospace-core";
 import { encodeMaps, encodePhotoSources, loadSourcePhoto, readExistingMeta, writePackage } from "./io.ts";
 
@@ -45,12 +47,17 @@ export async function loadConfig(configPath?: string, overrides: ConfigOverrides
       throw new Error(`maps.${key}はtrue/falseで指定してください。`);
     }
   }
+  const dtype = raw.model?.dtype;
+  if (dtype !== undefined && !MODEL_DTYPES.includes(dtype as ModelDtype)) {
+    throw new Error(`model.dtypeは ${MODEL_DTYPES.join("/")} のいずれかで指定してください。`);
+  }
   const config: PhotoSpaceConfig = {
     ...DEFAULT_CONFIG,
     ...raw,
     camera: { ...DEFAULT_CONFIG.camera, ...raw.camera },
     sky: { ...DEFAULT_CONFIG.sky, ...raw.sky },
     depth: { ...DEFAULT_CONFIG.depth, ...raw.depth },
+    model: { ...DEFAULT_CONFIG.model, ...raw.model },
     maps: {
       ...DEFAULT_CONFIG.maps,
       ...raw.maps,
@@ -108,7 +115,7 @@ export async function runBake(patterns: string[], opts: BakeCommandOptions): Pro
   }
 
   console.log(`${files.length}枚を処理します(config: ${opts.config ?? "既定値"})`);
-  const model = await loadDepthModel();
+  const model = await loadDepthModel({ dtype: config.model.dtype });
 
   let failed = 0;
   let skipped = 0;

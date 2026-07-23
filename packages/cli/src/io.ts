@@ -40,7 +40,15 @@ export interface EncodedMaps {
   totalBytes: number;
 }
 
-async function encodeRgbaPng(
+/**
+ * パック済みRGBAラスタをRGB(3ch)PNGとして書き出す。Aは全マップで定数255のため落とす。
+ * ブラウザ側のデコードはgetImageData/texImage2Dが常にRGBAへ展開するので互換が保たれる。
+ *
+ * palette:falseは必須。sharpはeffort等のパレット系オプションを渡すと暗黙にpalette:trueへ
+ * 切り替わり、256色への非可逆量子化でRG16深度が壊れる(かつては effort:10 がこれを踏んでいた)。
+ * 非パレットPNGにeffortは効かないため、圧縮の調整はcompressionLevelのみで行う。
+ */
+async function encodeMapPng(
   rgba: Uint8ClampedArray,
   width: number,
   height: number,
@@ -49,7 +57,8 @@ async function encodeRgbaPng(
   return sharp(Buffer.from(rgba.buffer, rgba.byteOffset, rgba.byteLength), {
     raw: { width, height, channels: 4 },
   })
-    .png({ compressionLevel, effort: 10 })
+    .removeAlpha()
+    .png({ compressionLevel, palette: false })
     .toBuffer();
 }
 
@@ -62,10 +71,11 @@ export async function encodeMaps(input: {
   height: number;
   compressionLevel: number;
 }): Promise<EncodedMaps> {
+  const { width, height, compressionLevel } = input;
   const [depth, mask, normal] = await Promise.all([
-    encodeRgbaPng(input.depthRgba, input.width, input.height, input.compressionLevel),
-    input.maskRgba ? encodeRgbaPng(input.maskRgba, input.width, input.height, input.compressionLevel) : undefined,
-    input.normalRgba ? encodeRgbaPng(input.normalRgba, input.width, input.height, input.compressionLevel) : undefined,
+    encodeMapPng(input.depthRgba, width, height, compressionLevel),
+    input.maskRgba ? encodeMapPng(input.maskRgba, width, height, compressionLevel) : undefined,
+    input.normalRgba ? encodeMapPng(input.normalRgba, width, height, compressionLevel) : undefined,
   ]);
   const totalBytes = depth.byteLength + (mask?.byteLength ?? 0) + (normal?.byteLength ?? 0);
   return { depth, mask, normal, totalBytes };

@@ -36,6 +36,7 @@ The SHA-256 hash of the photo bytes + config is recorded in `meta.json` as `sour
   "camera": { "fovDeg": 55, "farRange": 12 },
   "sky": { "threshold": 0.03 },
   "depth": { "maxSize": 1024 },
+  "model": { "dtype": "fp32" },
   "maps": { "maxBytes": 1500000, "pngCompressionLevel": 9, "mask": false, "normal": false },
   "photo": {
     "maxSize": 2048,
@@ -53,8 +54,9 @@ The SHA-256 hash of the photo bytes + config is recorded in `meta.json` as `sour
 | `camera.farRange` | Depth range for the disparity → depth conversion |
 | `sky.threshold` | Disparity below this value is treated as sky; recorded in `meta.json` and baked into the R channel of `mask.png` when bundled |
 | `depth.maxSize` | Long-edge pixel size of the output maps (snapped to the source photo resolution with a guided filter) |
+| `model.dtype` | Weight precision for the Node (CPU) depth inference: `fp32` / `fp16` / `q8` / `int8` / `uint8` / `q4` / `q4f16` / `bnb4`. `fp32` (default) is the quality baseline; quantized dtypes such as `q8` trade a slight quality difference for 2–4× faster inference |
 | `maps.maxBytes` | Maximum combined bytes for the bundled maps; `0` disables the limit. All bundled maps are rebaked at a smaller shared resolution when exceeded |
-| `maps.pngCompressionLevel` | PNG compression level for the map PNGs (0–9) |
+| `maps.pngCompressionLevel` | PNG compression level for the map PNGs (0–9). Maps are always encoded as non-palette (truecolor) PNGs — palette quantization would corrupt the RG16 depth packing |
 | `maps.mask` / `maps.normal` | Bundle `mask.png` / `normal.png` (default `false`); their presence is declared in `meta.json` |
 | `photo.maxSize` | Long-edge pixel size of each encoded photo variant |
 | `photo.formats` | Ordered photo variants to emit: `avif`, `webp`, `jpeg`. Must include `jpeg` — `photo.jpg` is the package's mandatory final fallback |

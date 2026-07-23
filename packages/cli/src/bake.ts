@@ -13,8 +13,18 @@ import {
   type PhotoSpaceConfig,
   type PhotoFormat,
   type ModelDtype,
+  type DepthModel,
+  type BakedPackage,
+  type SourcePhoto,
 } from "photospace-core";
-import { encodeMaps, encodePhotoSources, loadSourcePhoto, readExistingMeta, writePackage } from "./io.ts";
+import {
+  encodeMaps,
+  encodePhotoSources,
+  loadSourcePhoto,
+  readExistingMeta,
+  writePackage,
+  type EncodedMaps,
+} from "./io.ts";
 
 const IMAGE_EXTENSIONS = ["jpg", "jpeg", "png", "webp", "avif", "tiff"];
 
@@ -104,7 +114,95 @@ async function resolveInputFiles(patterns: string[]): Promise<string[]> {
   return [...results].sort();
 }
 
-/** `photospace bake` の本体。1枚ずつ処理し、失敗しても他ファイルの処理は継続する */
+type PreparedInput =
+  | { kind: "skip"; baseName: string }
+  | { kind: "error"; baseName: string; error: Error }
+  | { kind: "photo"; baseName: string; outDir: string; photo: SourcePhoto; sourceHash: string };
+
+/** 入力1枚の読み込み・スキップ判定・デコード。前の写真の推論と重ねて先読みできるよう独立させている */
+async function prepareInput(file: string, outRoot: string, config: PhotoSpaceConfig): Promise<PreparedInput> {
+  const baseName = path.basename(file).replace(/\.[^.]+$/, "");
+  const outDir = path.join(outRoot, baseName);
+  try {
+    const photoBytes = await readFile(file);
+    const sourceHash = await computeSourceHash(photoBytes, config);
+    const existing = await readExistingMeta(outDir);
+    // configはハッシュに含まれるため通常は自動でリベイクされるが、旧version出力の温存を明示的に防ぐ
+    if (existing?.sourceHash === sourceHash && existing.version === 2) {
+      return { kind: "skip", baseName };
+    }
+    const photo = await loadSourcePhoto(file);
+    return { kind: "photo", baseName, outDir, photo, sourceHash };
+  } catch (e) {
+    return { kind: "error", baseName, error: e as Error };
+  }
+}
+
+/** 推論からマップPNGエンコードまで。maps.maxBytes超過時は解像度を下げて再試行する */
+async function bakeWithSizeLimit(
+  model: DepthModel,
+  photo: SourcePhoto,
+  config: PhotoSpaceConfig,
+): Promise<{ baked: BakedPackage; maps: EncodedMaps }> {
+  const result = await estimateDepth(model, photo.input);
+  const normalized = normalizeDisparity(result.raw);
+  const lowRes = { width: result.width, height: result.height, data: normalized.data };
+
+  let mapMaxSize = config.depth.maxSize;
+  while (true) {
+    const effectiveConfig: PhotoSpaceConfig = {
+      ...config,
+      depth: { ...config.depth, maxSize: mapMaxSize },
+    };
+    const baked = await bakeFromDisparity(photo, lowRes, { min: normalized.min, max: normalized.max }, {
+      config: effectiveConfig,
+    });
+    const maps = await encodeMaps({
+      depthRgba: baked.depthRgba,
+      maskRgba: baked.maskRgba,
+      normalRgba: baked.normalRgba,
+      width: baked.depthWidth,
+      height: baked.depthHeight,
+      compressionLevel: config.maps.pngCompressionLevel,
+    });
+    if (config.maps.maxBytes <= 0 || maps.totalBytes <= config.maps.maxBytes) return { baked, maps };
+    const actualMaxSize = Math.max(baked.depthWidth, baked.depthHeight);
+    if (actualMaxSize <= 64) {
+      throw new Error(`maps.maxBytes=${config.maps.maxBytes}を最小解像度でも満たせませんでした。`);
+    }
+    mapMaxSize = nextMapMaxSize(actualMaxSize, maps.totalBytes, config.maps.maxBytes);
+  }
+}
+
+/** 写真の各フォーマットへのエンコードとパッケージ書き出し。次の写真の推論と重ねて実行される */
+async function finalizePackage(
+  prepared: { photo: SourcePhoto; sourceHash: string; outDir: string },
+  baked: BakedPackage,
+  maps: EncodedMaps,
+  config: PhotoSpaceConfig,
+): Promise<void> {
+  const photoSources = await encodePhotoSources(prepared.photo.bytes, config.photo);
+  const firstPhoto = photoSources[0];
+  baked.meta.sourceHash = prepared.sourceHash;
+  baked.meta.photo = {
+    file: firstPhoto.file,
+    width: firstPhoto.width,
+    height: firstPhoto.height,
+    sources: photoSources.map(({ file, type }) => ({ file, type })),
+  };
+  await writePackage({
+    outDir: prepared.outDir,
+    photoSources,
+    maps,
+    meta: baked.meta,
+  });
+}
+
+/**
+ * `photospace bake` の本体。推論は1枚ずつ直列だが、次の写真の読み込み・デコード(先読み1枚)と
+ * 前の写真のエンコード・書き出し(後段1枚)を推論とオーバーラップさせる小さなパイプラインで回す。
+ * 1枚失敗しても他ファイルの処理は継続する。
+ */
 export async function runBake(patterns: string[], opts: BakeCommandOptions): Promise<{ failed: number }> {
   const config = await loadConfig(opts.config, { mask: opts.mask, normal: opts.normal });
   const files = await resolveInputFiles(patterns);
@@ -119,73 +217,44 @@ export async function runBake(patterns: string[], opts: BakeCommandOptions): Pro
 
   let failed = 0;
   let skipped = 0;
-  for (const file of files) {
-    const baseName = path.basename(file).replace(/\.[^.]+$/, "");
-    const outDir = path.join(opts.out, baseName);
+  let pendingFinalize: Promise<void> | null = null;
+  let nextPrepared = prepareInput(files[0], opts.out, config);
+  for (let i = 0; i < files.length; i++) {
+    const prepared = await nextPrepared;
+    // 先読み: 現在の写真の推論中に次の写真の読み込み・デコードを進める
+    if (i + 1 < files.length) nextPrepared = prepareInput(files[i + 1], opts.out, config);
+
+    if (prepared.kind === "skip") {
+      console.log(`skip  ${prepared.baseName} (変更なし)`);
+      skipped++;
+      continue;
+    }
+    if (prepared.kind === "error") {
+      failed++;
+      console.error(`FAIL  ${prepared.baseName}:`, prepared.error.message);
+      continue;
+    }
+
+    let result;
     try {
-      const photoBytes = await readFile(file);
-      const sourceHash = await computeSourceHash(photoBytes, config);
-      const existing = await readExistingMeta(outDir);
-      // configはハッシュに含まれるため通常は自動でリベイクされるが、旧version出力の温存を明示的に防ぐ
-      if (existing?.sourceHash === sourceHash && existing.version === 2) {
-        console.log(`skip  ${baseName} (変更なし)`);
-        skipped++;
-        continue;
-      }
-
-      const photo = await loadSourcePhoto(file);
-      const result = await estimateDepth(model, photo.input);
-      const normalized = normalizeDisparity(result.raw);
-      const lowRes = { width: result.width, height: result.height, data: normalized.data };
-
-      let mapMaxSize = config.depth.maxSize;
-      let baked;
-      let maps;
-      while (true) {
-        const effectiveConfig: PhotoSpaceConfig = {
-          ...config,
-          depth: { ...config.depth, maxSize: mapMaxSize },
-        };
-        baked = await bakeFromDisparity(photo, lowRes, { min: normalized.min, max: normalized.max }, {
-          config: effectiveConfig,
-        });
-        maps = await encodeMaps({
-          depthRgba: baked.depthRgba,
-          maskRgba: baked.maskRgba,
-          normalRgba: baked.normalRgba,
-          width: baked.depthWidth,
-          height: baked.depthHeight,
-          compressionLevel: config.maps.pngCompressionLevel,
-        });
-        if (config.maps.maxBytes <= 0 || maps.totalBytes <= config.maps.maxBytes) break;
-        const actualMaxSize = Math.max(baked.depthWidth, baked.depthHeight);
-        if (actualMaxSize <= 64) {
-          throw new Error(`maps.maxBytes=${config.maps.maxBytes}を最小解像度でも満たせませんでした。`);
-        }
-        mapMaxSize = nextMapMaxSize(actualMaxSize, maps.totalBytes, config.maps.maxBytes);
-      }
-
-      const photoSources = await encodePhotoSources(photo.bytes, config.photo);
-      const firstPhoto = photoSources[0];
-      baked.meta.sourceHash = sourceHash;
-      baked.meta.photo = {
-        file: firstPhoto.file,
-        width: firstPhoto.width,
-        height: firstPhoto.height,
-        sources: photoSources.map(({ file, type }) => ({ file, type })),
-      };
-      await writePackage({
-        outDir,
-        photoSources,
-        maps,
-        meta: baked.meta,
-      });
-      console.log(`bake  ${baseName} -> ${outDir}`);
+      result = await bakeWithSizeLimit(model, prepared.photo, config);
     } catch (e) {
       failed++;
-      console.error(`FAIL  ${baseName}:`, (e as Error).message);
+      console.error(`FAIL  ${prepared.baseName}:`, (e as Error).message);
+      continue;
     }
+
+    // 後段は1枚分だけ先行を許す(並列度は固定)。前の書き出し完了を待ってから次を投入する
+    if (pendingFinalize) await pendingFinalize;
+    pendingFinalize = finalizePackage(prepared, result.baked, result.maps, config).then(
+      () => console.log(`bake  ${prepared.baseName} -> ${prepared.outDir}`),
+      (e: Error) => {
+        failed++;
+        console.error(`FAIL  ${prepared.baseName}:`, e.message);
+      },
+    );
   }
+  if (pendingFinalize) await pendingFinalize;
 
   console.log(`完了: ${files.length - skipped - failed}件ベイク / ${skipped}件スキップ / ${failed}件失敗`);
   return { failed };

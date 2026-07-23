@@ -1,5 +1,8 @@
 # Photospace
 
+[![photospace-cli on npm](https://img.shields.io/npm/v/photospace-cli?label=photospace-cli)](https://www.npmjs.com/package/photospace-cli)
+[![photospace-runtime on npm](https://img.shields.io/npm/v/photospace-runtime?label=photospace-runtime)](https://www.npmjs.com/package/photospace-runtime)
+
 https://github.com/user-attachments/assets/28fa49c9-63b1-4224-9786-69dc0e4b062a
 
 Turn a single photo into a set of assets for parallax rendering using monocular depth estimation (`photo.jpg` + optional AVIF/WebP candidates / `depth.png` / `meta.json`, plus opt-in `mask.png` / `normal.png`). The project ships both a browser demo viewer that runs entirely in the browser and a CLI for batch-processing many photos.
@@ -7,8 +10,8 @@ Turn a single photo into a set of assets for parallax rendering using monocular 
 **Live demo: [photospace-app.vercel.app](https://photospace-app.vercel.app)**
 
 - **Browser demo** (the root app in this repo): drop in a photo and it estimates depth in-browser (WebGPU/WASM), then previews a cursor-following parallax effect on the spot. Everything runs locally — nothing is uploaded to a server. Package export lets you set photo/map resolution, cap the combined map PNG size, and bundle AVIF/WebP/JPEG photo variants supported by the browser.
-- **[`photospace-cli`](packages/cli)**: runs the same inference and packing logic in Node to bake a whole folder of images at once. Distributed on npm as `photospace-cli`.
-- **[`photospace-runtime`](packages/runtime)**: a lightweight loader that reads the package, selects the first decodable photo candidate, and recovers world-space positions. Renderer-agnostic — usable from three.js or any other renderer. Distributed on npm as `photospace-runtime`.
+- **[`photospace-cli`](packages/cli)**: runs the same inference and packing logic in Node to bake a whole folder of images at once. Distributed on npm as [`photospace-cli`](https://www.npmjs.com/package/photospace-cli).
+- **[`photospace-runtime`](packages/runtime)**: a lightweight loader that reads the package, selects the first decodable photo candidate, and recovers world-space positions. Renderer-agnostic — usable from three.js or any other renderer. Distributed on npm as [`photospace-runtime`](https://www.npmjs.com/package/photospace-runtime).
 
 ## Repository layout
 

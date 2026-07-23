@@ -1,5 +1,7 @@
 # photospace-cli
 
+[![npm](https://img.shields.io/npm/v/photospace-cli)](https://www.npmjs.com/package/photospace-cli)
+
 A CLI that generates AVIF/WebP/JPEG photo variants plus `depth.png` / `meta.json` (and optional `mask.png` / `normal.png`) from photos. It runs monocular depth estimation ([Depth Anything V2](https://huggingface.co/onnx-community/depth-anything-v2-small)) on Node (CPU) and writes output in a format readable by [`photospace-runtime`](https://github.com/ptcl-dept/photospace/tree/main/packages/runtime).
 
 ## Install

@@ -2,6 +2,12 @@
   "version": "0.0.1",
   "configurations": [
     {
+      "name": "app",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["dev", "--port", "5198", "--strictPort"],
+      "port": 5198
+    },
+    {
       "name": "depth-splats",
       "runtimeExecutable": "pnpm",
       "runtimeArgs": ["dev:depth-splats", "--port", "5199", "--strictPort"],

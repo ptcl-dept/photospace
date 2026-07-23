@@ -1,5 +1,7 @@
 # photospace-runtime
 
+[![npm](https://img.shields.io/npm/v/photospace-runtime)](https://www.npmjs.com/package/photospace-runtime)
+
 A lightweight loader that reads a Photospace package (ordered AVIF/WebP/JPEG photo candidates plus `depth.png` / `meta.json`, and optional `mask.png` / `normal.png`) baked by [`photospace-cli`](https://github.com/ptcl-dept/photospace/tree/main/packages/cli), and returns decoded rasters plus helpers for recovering world-space positions. It is renderer-agnostic, so it works with three.js, raw WebGL, or Canvas2D.
 
 ## Install

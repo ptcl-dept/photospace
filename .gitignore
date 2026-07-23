@@ -7,6 +7,7 @@ dist
 dist-ssr
 dist-three-scene
 dist-depth-splats
+dist-relight
 
 # TypeScript
 *.tsbuildinfo

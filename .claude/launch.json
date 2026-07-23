@@ -14,6 +14,12 @@
       "port": 5199
     },
     {
+      "name": "relight",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["dev:relight", "--port", "5200", "--strictPort"],
+      "port": 5200
+    },
+    {
       "name": "three-scene",
       "runtimeExecutable": "pnpm",
       "runtimeArgs": ["dev:three-scene"],

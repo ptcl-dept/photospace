@@ -2,13 +2,16 @@ import * as THREE from "three";
 import { loadPackage, GLSL_SNIPPETS } from "photospace-runtime";
 
 /**
- * runtime/loader.ts で読み込んだ1パッケージ(photo.avif/depth.png/mask.png/normal.png/meta.json)
+ * runtime/loader.ts で読み込んだ1パッケージ(photo.avif/depth.png/meta.json)
  * だけを使い、Three.jsのShaderMaterialでカーソル追従の波紋エフェクトを再現する受け入れ検証シーン。
  * meta.jsonのcamera.fovDeg/farRange/sky.thresholdだけでシェーダーが書けることの証明。
+ * need指定でmask/normalのフェッチをスキップし(法線・エッジはシェーダー内で導出)、
+ * depthはdepthBitmapをRGBA8のままアップロードしてdsp8()でシェーダー内復元する
+ * (CPU側のFloat32化を踏まない、最も軽いロードパス)。
  */
 async function main(): Promise<void> {
   const hint = document.getElementById("hint")!;
-  const pkg = await loadPackage("/sample/source/");
+  const pkg = await loadPackage("/sample/source/", { need: ["photo", "depth"] });
   hint.textContent = "runtime/loader.ts で /sample/source/ を読み込み済み — マウスで波紋エフェクトを操作";
 
   const app = document.getElementById("app")!;
@@ -20,22 +23,19 @@ async function main(): Promise<void> {
   const scene = new THREE.Scene();
   const camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
 
-  const photoTexture = new THREE.Texture(pkg.photo);
+  // needで指定した要素は必ず存在する(型上はPartialなので非nullを明示)
+  const photoTexture = new THREE.Texture(pkg.photo!);
   photoTexture.needsUpdate = true;
   photoTexture.colorSpace = THREE.SRGBColorSpace;
 
-  const depthTexture = new THREE.DataTexture(
-    pkg.depth,
-    pkg.depthWidth,
-    pkg.depthHeight,
-    THREE.RedFormat,
-    THREE.FloatType,
-  );
+  // depth.pngのRG16パックをRGBA8のままアップロードし、dsp8()でシェーダー内復元する
+  const depthTexture = new THREE.Texture(pkg.depthBitmap!);
   depthTexture.magFilter = THREE.NearestFilter;
   depthTexture.minFilter = THREE.NearestFilter;
   depthTexture.generateMipmaps = false;
-  // depth.pngは上から下(row0=最上段)の並びのまま復元されるため、Y反転はしない。
-  // 反転補正はdsp()内の 1.0-uv.y で行う(現行ビューワと同じ方式)。
+  depthTexture.colorSpace = THREE.NoColorSpace;
+  // depth.pngは上から下(row0=最上段)の並びのままアップロードするため、Y反転はしない。
+  // 反転補正はdsp8()内の 1.0-uv.y で行う(現行ビューワと同じ方式)。
   depthTexture.flipY = false;
   depthTexture.needsUpdate = true;
 
@@ -70,22 +70,22 @@ async function main(): Promise<void> {
       in vec2 vUv;
       out vec4 fragColor;
 
-      ${GLSL_SNIPPETS.unpackAndSampleDepth}
+      ${GLSL_SNIPPETS.unpackAndSampleDepthRgba8}
       ${GLSL_SNIPPETS.worldPosition}
+      ${GLSL_SNIPPETS.screenSpaceNormal}
 
       void main() {
         vec2 uv = vUv;
-        float d0 = dsp(uDep, uDRes, uv);
+        float d0 = dsp8(uDep, uDRes, uv);
         vec3 alb = texture(uImg, uv).rgb;
         bool sky = d0 < uSky;
         vec3 pos = wpos(uv, d0, uAspect, uTanF, uFar);
         float z = -pos.z;
-        vec3 n = normalize(cross(dFdx(pos), dFdy(pos)));
-        if (dot(n, -pos) < 0.) n = -n;
+        vec3 n = nrm(pos);
         float rel = length(vec2(dFdx(z), dFdy(z))) / z;
         float edge = 1.0 - smoothstep(0.05, 0.15, rel);
 
-        float dc = dsp(uDep, uDRes, uCur);
+        float dc = dsp8(uDep, uDRes, uCur);
         vec3 pc = wpos(uCur, dc, uAspect, uTanF, uFar);
         float on = dc < uSky ? 0.0 : 1.0;
         float dn = length(pos - pc) / uRad;

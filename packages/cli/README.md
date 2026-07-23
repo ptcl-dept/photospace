@@ -24,6 +24,8 @@ photospace bake ./photos --out ./out
 - `--mask`: bundle `mask.png` (sky + edge masks); overrides `maps.mask` in the config
 - `--normal`: bundle `normal.png` (world-space normals); overrides `maps.normal` in the config
 
+> `mask.png` / `normal.png` are baked purely from depth + camera meta, so consumers can derive the same data at runtime instead — `photospace-runtime` exports `computeSkyMask` / `computeEdgeMask` / `computeNormals`, and `GLSL_SNIPPETS.screenSpaceNormal` covers the in-shader case. Skipping the maps shrinks the package, and under a `maps.maxBytes` cap the freed budget raises the depth resolution. Bundle them only when you want to skip the runtime derivation cost.
+
 The SHA-256 hash of the photo bytes + config is recorded in `meta.json` as `sourceHash`, so re-running on identical input skips the bake.
 
 ## config.json

@@ -40,6 +40,140 @@ export interface PhotoSpaceMetaV2 extends PhotoSpaceMetaShared {
 
 export type PhotoSpaceMeta = PhotoSpaceMetaV1 | PhotoSpaceMetaV2;
 
+/** 幅・高さ付きFloat32ラスタ(coreのRasterF32と同形。深度・マスク類の共通表現) */
+export interface RasterF32 {
+  width: number;
+  height: number;
+  data: Float32Array;
+}
+
+/**
+ * エッジマスクの感度。深度勾配のどこからエッジとみなすかの閾値で、
+ * meta.json化されるsky.thresholdと違い調整UIを持たず固定値とする
+ * (現index.htmlプロトタイプの既定値 uEdge=0.05 を踏襲)。
+ */
+const EDGE_THRESHOLD = 0.05;
+
+/**
+ * depth < threshold の画素を空とみなす (1=空, 0=非空)。
+ * mask.pngのRチャンネルはこの関数の焼き込み結果なので、mask.png非同梱の
+ * パッケージでもdepthとmeta.sky.thresholdから同じものを導出できる。
+ */
+export function computeSkyMask(depth: RasterF32, threshold: number): Float32Array {
+  const out = new Float32Array(depth.data.length);
+  for (let i = 0; i < out.length; i++) {
+    out[i] = depth.data[i] < threshold ? 1 : 0;
+  }
+  return out;
+}
+
+/**
+ * 深度の勾配(不連続度)からエッジマスクを算出する。値が小さいほどシルエット(輪郭)。
+ * mask.pngのGチャンネル相当。現行ビューワのシェーダー内 rel/edge 計算のCPU移植。
+ */
+export function computeEdgeMask(depth: RasterF32, threshold = EDGE_THRESHOLD): Float32Array {
+  const { width: w, height: h, data } = depth;
+  const out = new Float32Array(data.length);
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      const i = y * w + x;
+      const d = Math.max(data[i], 1e-4);
+      const xr = Math.min(x + 1, w - 1);
+      const xl = Math.max(x - 1, 0);
+      const yd = Math.min(y + 1, h - 1);
+      const yu = Math.max(y - 1, 0);
+      const dx = (data[y * w + xr] - data[y * w + xl]) * 0.5;
+      const dy = (data[yd * w + x] - data[yu * w + x]) * 0.5;
+      const rel = Math.sqrt(dx * dx + dy * dy) / d;
+      // smoothstep(threshold, threshold*3, rel) の 1-x 版
+      const t = clamp01((rel - threshold) / (threshold * 2));
+      const smooth = t * t * (3 - 2 * t);
+      out[i] = 1 - smooth;
+    }
+  }
+  return out;
+}
+
+function clamp01(v: number): number {
+  return v < 0 ? 0 : v > 1 ? 1 : v;
+}
+
+export interface NormalRaster {
+  width: number;
+  height: number;
+  nx: Float32Array;
+  ny: Float32Array;
+  nz: Float32Array;
+}
+
+/**
+ * 深度 + カメラFOVから、被写体表面のワールド法線を計算する。
+ * normal.pngはこの関数の焼き込み結果(CLIは量子化前のfloat深度から計算する点だけが違い、
+ * 実用上は同等)なので、normal.png非同梱のパッケージでも導出できる。
+ * シェーダーだけで足りる場合は GLSL_SNIPPETS.screenSpaceNormal を参照。
+ */
+export function computeNormals(depth: RasterF32, fovDeg: number, farRange: number): NormalRaster {
+  const { width: w, height: h, data } = depth;
+  const aspect = w / h;
+  const tanHalfFov = Math.tan((fovDeg * Math.PI) / 360);
+
+  const nx = new Float32Array(w * h);
+  const ny = new Float32Array(w * h);
+  const nz = new Float32Array(w * h);
+
+  const pos = (x: number, y: number): [number, number, number] => {
+    const xi = Math.min(Math.max(x, 0), w - 1);
+    const yi = Math.min(Math.max(y, 0), h - 1);
+    const u = (xi + 0.5) / w;
+    const v = (yi + 0.5) / h;
+    return worldPosition(u, v, data[yi * w + xi], aspect, tanHalfFov, farRange);
+  };
+
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      const p = pos(x, y);
+      const pxr = pos(x + 1, y);
+      const pxl = pos(x - 1, y);
+      const pyd = pos(x, y + 1);
+      const pyu = pos(x, y - 1);
+      const dPosX: [number, number, number] = [
+        (pxr[0] - pxl[0]) * 0.5,
+        (pxr[1] - pxl[1]) * 0.5,
+        (pxr[2] - pxl[2]) * 0.5,
+      ];
+      const dPosY: [number, number, number] = [
+        (pyd[0] - pyu[0]) * 0.5,
+        (pyd[1] - pyu[1]) * 0.5,
+        (pyd[2] - pyu[2]) * 0.5,
+      ];
+      let n = cross(dPosX, dPosY);
+      n = normalize(n);
+      if (dot(n, [-p[0], -p[1], -p[2]]) < 0) {
+        n = [-n[0], -n[1], -n[2]];
+      }
+      const i = y * w + x;
+      nx[i] = n[0];
+      ny[i] = n[1];
+      nz[i] = n[2];
+    }
+  }
+
+  return { width: w, height: h, nx, ny, nz };
+}
+
+function cross(a: [number, number, number], b: [number, number, number]): [number, number, number] {
+  return [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
+}
+
+function dot(a: [number, number, number], b: [number, number, number]): number {
+  return a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+}
+
+function normalize(v: [number, number, number]): [number, number, number] {
+  const len = Math.sqrt(dot(v, v)) || 1;
+  return [v[0] / len, v[1] / len, v[2] / len];
+}
+
 /** depth.png(R=上位8bit, G=下位8bit)を復元する。d = (R*256 + G) / 65535 */
 function unpackDepthRG16(rgba: Uint8Array | Uint8ClampedArray): Float32Array {
   const count = rgba.length / 4;
@@ -57,7 +191,7 @@ function toZ(d: number, far: number): number {
 }
 
 /** uv(0..1)と視差dから、現行ビューワのwpos()と同じ式でワールド座標を求める */
-function worldPosition(
+export function worldPosition(
   u: number,
   v: number,
   d: number,
@@ -71,33 +205,70 @@ function worldPosition(
   return [sx * z, sy * z, -z];
 }
 
-export interface PhotoSpacePackage {
-  meta: PhotoSpaceMeta;
-  /** meta.photo.sourcesのうち最初にデコードできた写真(テクスチャソースとしてそのまま使える) */
-  photo: ImageBitmap;
-  /** 復元済みの視差値(0..1)。 depthWidth x depthHeight */
-  depth: Float32Array;
-  depthWidth: number;
-  depthHeight: number;
-  /** 0..1 (1=空)。mask.png同梱時のみ(v1パッケージは常に同梱) */
-  skyMask?: Float32Array;
-  /** 0..1 (1=非エッジ、現行ビューワのedge変数と同じ極性)。mask.png同梱時のみ */
-  edgeMask?: Float32Array;
-  /** normal.png同梱時のみ(v1パッケージは常に同梱) */
-  normal?: { nx: Float32Array; ny: Float32Array; nz: Float32Array };
+/** loadPackageで選択ロードできる構成要素 */
+export type PackageComponent = "photo" | "depth" | "mask" | "normal";
+
+export interface LoadPackageOptions {
+  /**
+   * 読み込む構成要素。省略時は同梱されているものすべて(従来互換)。
+   * 指定外の要素はフェッチもデコードもされず、対応するフィールドはundefinedになる。
+   */
+  need?: readonly PackageComponent[];
 }
 
-async function fetchImageRaster(url: string): Promise<{ data: Uint8ClampedArray; width: number; height: number }> {
+/**
+ * needで要素をスキップした場合の型。photo/depthもundefinedになりうる。
+ * Float32Array系フィールド(depth/skyMask/edgeMask/normal)は初回アクセス時に
+ * 対応するImageBitmapからCPU復元される遅延getter(以降はキャッシュ)。
+ * GPUへBitmapを直接アップロードするだけの利用者はCPU復元コストを一切払わない。
+ * 注意: *Bitmapをclose()するのは、対応する遅延フィールドへアクセスした後にすること。
+ */
+export interface PartialPhotoSpacePackage {
+  meta: PhotoSpaceMeta;
+  /** meta.photo.sourcesのうち最初にデコードできた写真(テクスチャソースとしてそのまま使える) */
+  photo?: ImageBitmap;
+  /**
+   * デコード済みdepth.png(RG16パックのままのRGBA8)。テクスチャとして直接アップロードし、
+   * GLSL_SNIPPETS.unpackAndSampleDepthRgba8(dsp8)でシェーダー内復元できる。
+   */
+  depthBitmap?: ImageBitmap;
+  /** 復元済みの視差値(0..1)。depthWidth x depthHeight。遅延評価 */
+  readonly depth?: Float32Array;
+  depthWidth: number;
+  depthHeight: number;
+  /** デコード済みmask.png(R=空, G=エッジ)。mask.png同梱かつneed対象時のみ */
+  maskBitmap?: ImageBitmap;
+  /** デコード済みnormal.png(RGB=法線xyzの0..255エンコード)。normal.png同梱かつneed対象時のみ */
+  normalBitmap?: ImageBitmap;
+  /** 0..1 (1=空)。mask.png同梱時のみ(v1パッケージは常に同梱)。遅延評価 */
+  readonly skyMask?: Float32Array;
+  /** 0..1 (1=非エッジ、現行ビューワのedge変数と同じ極性)。mask.png同梱時のみ。遅延評価 */
+  readonly edgeMask?: Float32Array;
+  /** normal.png同梱時のみ(v1パッケージは常に同梱)。遅延評価 */
+  readonly normal?: { nx: Float32Array; ny: Float32Array; nz: Float32Array };
+}
+
+/** need未指定(全部読む)時の型。photo/depthは必ず存在する */
+export interface PhotoSpacePackage extends PartialPhotoSpacePackage {
+  photo: ImageBitmap;
+  depthBitmap: ImageBitmap;
+  readonly depth: Float32Array;
+}
+
+/** データ用マップ(depth/mask/normal)のフェッチ+デコード。色管理によるピクセル値変換を無効化する */
+async function fetchDataBitmap(url: string): Promise<ImageBitmap> {
   const response = await fetch(url);
   if (!response.ok) throw new Error(`画像を取得できませんでした: ${url} (${response.status})`);
   const blob = await response.blob();
-  // depth/mask/normalは色ではなくデータなので、ブラウザの色管理によるピクセル値変換を無効化する
-  const bitmap = await createImageBitmap(blob, { colorSpaceConversion: "none", premultiplyAlpha: "none" });
+  return createImageBitmap(blob, { colorSpaceConversion: "none", premultiplyAlpha: "none" });
+}
+
+/** ImageBitmapをRGBAラスタへ展開する(遅延CPU復元用) */
+function rasterizeBitmap(bitmap: ImageBitmap): Uint8ClampedArray {
   const canvas = new OffscreenCanvas(bitmap.width, bitmap.height);
   const ctx = canvas.getContext("2d")!;
   ctx.drawImage(bitmap, 0, 0);
-  const im = ctx.getImageData(0, 0, bitmap.width, bitmap.height);
-  return { data: im.data, width: bitmap.width, height: bitmap.height };
+  return ctx.getImageData(0, 0, bitmap.width, bitmap.height).data;
 }
 
 /** metaから取得すべきマップファイル名を決める。v1は全マップ必須、v2は宣言されたものだけ */
@@ -129,8 +300,37 @@ async function fetchPhotoBitmap(base: string, meta: PhotoSpaceMeta): Promise<Ima
   throw new Error(`写真をデコードできませんでした (${failures.join(", ")})`);
 }
 
+/** mask.pngのRGBAラスタをsky(R)/edge(G)のFloat32ペアへ復元する */
+function unpackMask(rgba: Uint8ClampedArray): { sky: Float32Array; edge: Float32Array } {
+  const count = rgba.length / 4;
+  const sky = new Float32Array(count);
+  const edge = new Float32Array(count);
+  for (let i = 0; i < count; i++) {
+    sky[i] = rgba[i * 4] / 255;
+    edge[i] = rgba[i * 4 + 1] / 255;
+  }
+  return { sky, edge };
+}
+
+/** normal.pngのRGBAラスタを-1..1の法線成分へ復元する */
+function unpackNormal(rgba: Uint8ClampedArray): { nx: Float32Array; ny: Float32Array; nz: Float32Array } {
+  const count = rgba.length / 4;
+  const nx = new Float32Array(count);
+  const ny = new Float32Array(count);
+  const nz = new Float32Array(count);
+  for (let i = 0; i < count; i++) {
+    nx[i] = (rgba[i * 4] / 255) * 2 - 1;
+    ny[i] = (rgba[i * 4 + 1] / 255) * 2 - 1;
+    nz[i] = (rgba[i * 4 + 2] / 255) * 2 - 1;
+  }
+  return { nx, ny, nz };
+}
+
 /** baseUrl配下の写真/depth.png/meta.json(+metaが宣言するmask/normal)を読み込む */
-export async function loadPackage(baseUrl: string | URL): Promise<PhotoSpacePackage> {
+export function loadPackage(baseUrl: string | URL): Promise<PhotoSpacePackage>;
+/** need指定時はスキップした要素がundefinedになる(PartialPhotoSpacePackage) */
+export function loadPackage(baseUrl: string | URL, options: LoadPackageOptions): Promise<PartialPhotoSpacePackage>;
+export async function loadPackage(baseUrl: string | URL, options?: LoadPackageOptions): Promise<PhotoSpacePackage> {
   const normalized = typeof baseUrl === "string" && !baseUrl.endsWith("/") ? baseUrl + "/" : baseUrl;
   const base = new URL(normalized, location.href).toString();
 
@@ -138,51 +338,48 @@ export async function loadPackage(baseUrl: string | URL): Promise<PhotoSpacePack
   if (!metaResponse.ok) throw new Error(`meta.jsonを取得できませんでした (${metaResponse.status})`);
   const meta: PhotoSpaceMeta = await metaResponse.json();
   const mapFiles = packageMapFiles(meta); // 未対応versionはここでthrow
+  const need = new Set<PackageComponent>(options?.need ?? ["photo", "depth", "mask", "normal"]);
 
-  const [depthRaster, maskRaster, normalRaster, photo] = await Promise.all([
-    fetchImageRaster(new URL("depth.png", base).toString()),
-    mapFiles.mask ? fetchImageRaster(new URL(mapFiles.mask, base).toString()) : undefined,
-    mapFiles.normal ? fetchImageRaster(new URL(mapFiles.normal, base).toString()) : undefined,
-    fetchPhotoBitmap(base, meta),
+  const [depthBitmap, maskBitmap, normalBitmap, photo] = await Promise.all([
+    need.has("depth") ? fetchDataBitmap(new URL("depth.png", base).toString()) : undefined,
+    need.has("mask") && mapFiles.mask ? fetchDataBitmap(new URL(mapFiles.mask, base).toString()) : undefined,
+    need.has("normal") && mapFiles.normal ? fetchDataBitmap(new URL(mapFiles.normal, base).toString()) : undefined,
+    need.has("photo") ? fetchPhotoBitmap(base, meta) : undefined,
   ]);
 
-  const depth = unpackDepthRG16(depthRaster.data);
-  const count = depth.length;
+  // Float32復元は初回アクセス時に行い、以降はキャッシュを返す。
+  // Bitmapをテクスチャへ直接アップロードするだけの利用者はこのコストを払わない。
+  let depthCache: Float32Array | undefined;
+  let maskCache: { sky: Float32Array; edge: Float32Array } | undefined;
+  let normalCache: { nx: Float32Array; ny: Float32Array; nz: Float32Array } | undefined;
 
-  let skyMask: Float32Array | undefined;
-  let edgeMask: Float32Array | undefined;
-  if (maskRaster) {
-    skyMask = new Float32Array(count);
-    edgeMask = new Float32Array(count);
-    for (let i = 0; i < count; i++) {
-      skyMask[i] = maskRaster.data[i * 4] / 255;
-      edgeMask[i] = maskRaster.data[i * 4 + 1] / 255;
-    }
-  }
-
-  let normal: PhotoSpacePackage["normal"];
-  if (normalRaster) {
-    const nx = new Float32Array(count);
-    const ny = new Float32Array(count);
-    const nz = new Float32Array(count);
-    for (let i = 0; i < count; i++) {
-      nx[i] = (normalRaster.data[i * 4] / 255) * 2 - 1;
-      ny[i] = (normalRaster.data[i * 4 + 1] / 255) * 2 - 1;
-      nz[i] = (normalRaster.data[i * 4 + 2] / 255) * 2 - 1;
-    }
-    normal = { nx, ny, nz };
-  }
-
-  return {
+  const pkg: PartialPhotoSpacePackage = {
     meta,
     photo,
-    depth,
+    depthBitmap,
+    maskBitmap,
+    normalBitmap,
     depthWidth: meta.depth.width,
     depthHeight: meta.depth.height,
-    skyMask,
-    edgeMask,
-    normal,
+    get depth() {
+      if (!depthBitmap) return undefined;
+      return (depthCache ??= unpackDepthRG16(rasterizeBitmap(depthBitmap)));
+    },
+    get skyMask() {
+      if (!maskBitmap) return undefined;
+      return (maskCache ??= unpackMask(rasterizeBitmap(maskBitmap))).sky;
+    },
+    get edgeMask() {
+      if (!maskBitmap) return undefined;
+      return (maskCache ??= unpackMask(rasterizeBitmap(maskBitmap))).edge;
+    },
+    get normal() {
+      if (!normalBitmap) return undefined;
+      return (normalCache ??= unpackNormal(rasterizeBitmap(normalBitmap)));
+    },
   };
+  // need未指定時はphoto/depthが必ず埋まるため、公開型としてはPhotoSpacePackageに一致する
+  return pkg as PhotoSpacePackage;
 }
 
 /** meta.json の camera 情報を使い、uv+視差からワールド座標を逆算する */
@@ -198,6 +395,37 @@ export function worldPositionFromMeta(meta: PhotoSpaceMeta, u: number, v: number
  * 使用側はuDep(sampler2D)とuDRes(vec2)のuniformを用意すること。
  */
 export const GLSL_SNIPPETS = {
+  /**
+   * depthBitmap(RG16パックのままのRGBA8テクスチャ)をシェーダー内で復元する版。
+   * texelFetchの正規化値(byte/255)から d = (R*256+G)*255/65535 を復元する。
+   * CPU側のFloat32化(pkg.depth)を踏まずに済む。dspと同じく手動バイリニア。
+   * テクスチャはNEAREST・flipYなしでアップロードすること。
+   */
+  unpackAndSampleDepthRgba8: `
+float dsp8t(sampler2D uDep, ivec2 p){
+  vec2 rg=texelFetch(uDep,p,0).rg;
+  return (rg.x*256.0+rg.y)*255.0/65535.0;
+}
+float dsp8(sampler2D uDep, vec2 uDRes, vec2 uv){
+  vec2 stx=vec2(uv.x,1.0-uv.y)*uDRes-0.5;
+  vec2 f=fract(stx);
+  ivec2 i0=ivec2(floor(stx));
+  ivec2 mx=ivec2(uDRes)-1;
+  float a=dsp8t(uDep,clamp(i0,ivec2(0),mx));
+  float b=dsp8t(uDep,clamp(i0+ivec2(1,0),ivec2(0),mx));
+  float c=dsp8t(uDep,clamp(i0+ivec2(0,1),ivec2(0),mx));
+  float d=dsp8t(uDep,clamp(i0+ivec2(1,1),ivec2(0),mx));
+  return mix(mix(a,b,f.x),mix(c,d,f.x),f.y);
+}`.trim(),
+  /**
+   * ワールド座標(wpos)からスクリーン空間微分で法線を導出する(フラグメントシェーダー専用)。
+   * normal.pngの焼き込みが不要なケースの代替。computeNormalsのシェーダー版に相当。
+   */
+  screenSpaceNormal: `
+vec3 nrm(vec3 pos){
+  vec3 n=normalize(cross(dFdx(pos),dFdy(pos)));
+  return dot(n,-pos)<0.0?-n:n;
+}`.trim(),
   unpackAndSampleDepth: `
 float dsp(sampler2D uDep, vec2 uDRes, vec2 uv){
   vec2 stx=vec2(uv.x,1.0-uv.y)*uDRes-0.5;

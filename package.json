@@ -18,8 +18,8 @@
     "cli": "pnpm --filter photospace-cli dev",
     "build:cli": "pnpm --filter photospace-cli build",
     "build:runtime": "pnpm --filter photospace-runtime build",
-    "test": "node --experimental-strip-types --test packages/*/test/*.test.ts src/*/*.test.ts",
-    "typecheck": "pnpm -r --include-workspace-root exec tsc --noEmit -p tsconfig.json"
+    "test": "pnpm build:runtime && node --experimental-strip-types --test packages/*/test/*.test.ts src/*/*.test.ts",
+    "typecheck": "pnpm build:runtime && pnpm -r --include-workspace-root exec tsc --noEmit -p tsconfig.json"
   },
   "devDependencies": {
     "@types/three": "^0.185.1",

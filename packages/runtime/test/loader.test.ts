@@ -1,6 +1,9 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
+  computeEdgeMask,
+  computeNormals,
+  computeSkyMask,
   packageMapFiles,
   photoFileCandidates,
   type PhotoSpaceMeta,
@@ -79,4 +82,32 @@ test("packageMapFiles returns only the maps declared by v2 meta", () => {
 
 test("packageMapFiles rejects unsupported versions", () => {
   assert.throws(() => packageMapFiles({ ...meta(), version: 3 } as unknown as PhotoSpaceMeta), /version/);
+});
+
+// mask.png/normal.png非同梱パッケージ向けの実行時導出(coreの焼き込みと同一実装)
+
+test("computeSkyMask flags pixels below the threshold as sky", () => {
+  const depth = { width: 2, height: 1, data: new Float32Array([0.01, 0.5]) };
+  assert.deepEqual(Array.from(computeSkyMask(depth, 0.03)), [1, 0]);
+});
+
+test("computeEdgeMask returns ~1 (non-edge) on a flat depth field", () => {
+  const depth = { width: 3, height: 3, data: new Float32Array(9).fill(0.5) };
+  for (const v of computeEdgeMask(depth)) assert.ok(v > 0.99);
+});
+
+test("computeEdgeMask drops toward 0 at a sharp depth discontinuity", () => {
+  const data = new Float32Array([0.9, 0.9, 0.1, 0.1]);
+  const edge = computeEdgeMask({ width: 4, height: 1, data });
+  assert.ok(edge[1] < 0.1);
+  assert.ok(edge[2] < 0.1);
+});
+
+test("computeNormals points toward the camera (+z) on a flat depth field", () => {
+  const depth = { width: 4, height: 4, data: new Float32Array(16).fill(0.5) };
+  const { nx, ny, nz } = computeNormals(depth, 55, 12);
+  const center = 1 * 4 + 1;
+  assert.ok(Math.abs(nx[center]) < 0.2);
+  assert.ok(Math.abs(ny[center]) < 0.2);
+  assert.ok(nz[center] > 0.9);
 });

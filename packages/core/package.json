@@ -11,6 +11,7 @@
     ".": "./src/index.ts"
   },
   "dependencies": {
-    "@huggingface/transformers": "^4.2.0"
+    "@huggingface/transformers": "^4.2.0",
+    "photospace-runtime": "workspace:*"
   }
 }

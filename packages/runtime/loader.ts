@@ -91,7 +91,8 @@ async function fetchImageRaster(url: string): Promise<{ data: Uint8ClampedArray;
   const response = await fetch(url);
   if (!response.ok) throw new Error(`画像を取得できませんでした: ${url} (${response.status})`);
   const blob = await response.blob();
-  const bitmap = await createImageBitmap(blob);
+  // depth/mask/normalは色ではなくデータなので、ブラウザの色管理によるピクセル値変換を無効化する
+  const bitmap = await createImageBitmap(blob, { colorSpaceConversion: "none", premultiplyAlpha: "none" });
   const canvas = new OffscreenCanvas(bitmap.width, bitmap.height);
   const ctx = canvas.getContext("2d")!;
   ctx.drawImage(bitmap, 0, 0);

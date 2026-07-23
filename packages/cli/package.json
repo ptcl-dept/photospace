@@ -1,6 +1,6 @@
 {
   "name": "photospace-cli",
-  "version": "0.3.1",
+  "version": "0.3.2",
   "description": "Photospace CLI — batch-bake packages of photo candidates plus depth.png/meta.json (and optional mask/normal maps).",
   "type": "module",
   "license": "MIT",

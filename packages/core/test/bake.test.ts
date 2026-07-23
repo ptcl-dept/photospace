@@ -23,6 +23,17 @@ test("bakeFromDisparity omits mask/normal by default", async () => {
   assert.equal(baked.depthRgba.length, baked.depthWidth * baked.depthHeight * 4);
 });
 
+test("bakeFromDisparity uses a precomputed sourceHash when provided", async () => {
+  const computed = await bakeFromDisparity(photo, lowRes, { min: 0, max: 1 }, { config: DEFAULT_CONFIG });
+  const provided = await bakeFromDisparity(photo, lowRes, { min: 0, max: 1 }, {
+    config: DEFAULT_CONFIG,
+    sourceHash: "precomputed-hash",
+  });
+  assert.equal(provided.meta.sourceHash, "precomputed-hash");
+  // 省略時は従来どおり内部で計算される
+  assert.match(computed.meta.sourceHash!, /^[0-9a-f]{64}$/);
+});
+
 test("bakeFromDisparity declares and returns maps when enabled", async () => {
   const config: PhotoSpaceConfig = {
     ...DEFAULT_CONFIG,

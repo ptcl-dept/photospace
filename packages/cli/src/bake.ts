@@ -138,11 +138,15 @@ async function prepareInput(file: string, outRoot: string, config: PhotoSpaceCon
   }
 }
 
-/** 推論からマップPNGエンコードまで。maps.maxBytes超過時は解像度を下げて再試行する */
+/**
+ * 推論からマップPNGエンコードまで。maps.maxBytes超過時は解像度を下げて再試行する。
+ * sourceHashは計算済みの値を渡し、再試行時に写真バイト列のSHA-256を再計算しない。
+ */
 async function bakeWithSizeLimit(
   model: DepthModel,
   photo: SourcePhoto,
   config: PhotoSpaceConfig,
+  sourceHash: string,
 ): Promise<{ baked: BakedPackage; maps: EncodedMaps }> {
   const result = await estimateDepth(model, photo.input);
   const normalized = normalizeDisparity(result.raw);
@@ -156,6 +160,7 @@ async function bakeWithSizeLimit(
     };
     const baked = await bakeFromDisparity(photo, lowRes, { min: normalized.min, max: normalized.max }, {
       config: effectiveConfig,
+      sourceHash,
     });
     const maps = await encodeMaps({
       depthRgba: baked.depthRgba,
@@ -176,14 +181,14 @@ async function bakeWithSizeLimit(
 
 /** 写真の各フォーマットへのエンコードとパッケージ書き出し。次の写真の推論と重ねて実行される */
 async function finalizePackage(
-  prepared: { photo: SourcePhoto; sourceHash: string; outDir: string },
+  prepared: { photo: SourcePhoto; outDir: string },
   baked: BakedPackage,
   maps: EncodedMaps,
   config: PhotoSpaceConfig,
 ): Promise<void> {
   const photoSources = await encodePhotoSources(prepared.photo.bytes, config.photo);
   const firstPhoto = photoSources[0];
-  baked.meta.sourceHash = prepared.sourceHash;
+  // meta.sourceHashはbakeFromDisparityへ渡した計算済みハッシュが既に入っている
   baked.meta.photo = {
     file: firstPhoto.file,
     width: firstPhoto.width,
@@ -237,7 +242,7 @@ export async function runBake(patterns: string[], opts: BakeCommandOptions): Pro
 
     let result;
     try {
-      result = await bakeWithSizeLimit(model, prepared.photo, config);
+      result = await bakeWithSizeLimit(model, prepared.photo, config, prepared.sourceHash);
     } catch (e) {
       failed++;
       console.error(`FAIL  ${prepared.baseName}:`, (e as Error).message);

@@ -124,6 +124,8 @@ export async function downloadPackage(input: ExportPackageInput): Promise<Packag
     };
     baked = await bakeFromDisparity(input.photo, input.lowResDisparity, input.normalization, {
       config: effectiveConfig,
+      // 再試行時に写真バイト列のSHA-256を再計算しないよう、計算済みハッシュを渡す
+      sourceHash: requestedHash,
     });
     [depthBytes, maskBytes, normalBytes] = await Promise.all([
       encodePng(baked.depthRgba, baked.depthWidth, baked.depthHeight),
@@ -145,7 +147,6 @@ export async function downloadPackage(input: ExportPackageInput): Promise<Packag
   const firstPhoto = photos[0];
   const meta = {
     ...baked.meta,
-    sourceHash: requestedHash,
     photo: {
       file: firstPhoto.name,
       width: firstPhoto.width,

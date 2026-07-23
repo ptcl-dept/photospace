@@ -39,6 +39,12 @@ export interface BakeOptions {
 export interface BakeFromDisparityOptions {
   config: PhotoSpaceConfig;
   guidedFilter?: { radius?: number; eps?: number };
+  /**
+   * 計算済みのsourceHash(computeSourceHashの結果)。容量キャップ超過時の再試行のように
+   * 同一写真へ繰り返し呼ぶ場合、写真バイト列のSHA-256再計算を省くため呼び出し元から渡せる。
+   * 省略時は内部で計算する。
+   */
+  sourceHash?: string;
 }
 
 /** 長辺がmaxSizeになるようリサイズ後の(width,height)を計算する */
@@ -87,7 +93,7 @@ export async function bakeFromDisparity(
     normalRgba = packNormal(normals.nx, normals.ny, normals.nz);
   }
 
-  const sourceHash = await computeSourceHash(photo.bytes, config);
+  const sourceHash = opts.sourceHash ?? (await computeSourceHash(photo.bytes, config));
 
   const meta: PhotoSpaceMeta = {
     version: 2,

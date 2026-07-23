@@ -5,6 +5,8 @@ node_modules
 # Build output
 dist
 dist-ssr
+dist-three-scene
+dist-depth-splats
 
 # TypeScript
 *.tsbuildinfo
@@ -38,3 +40,4 @@ lerna-debug.log*
 
 .docs
 .agents
+.claude
